@@ -25,11 +25,11 @@ services:
       # Encrypts PAN / bank numbers (32 random bytes, base64). Must never change once real data is stored.
       - key: FIELD_ENCRYPTION_KEY
         generateValue: true
-      # The live site address: used in invitation links and as the allowed browser origin.
+      # The live site (Vercel frontend, which proxies /api here): used in invitation links and as allowed origins.
       - key: PUBLIC_WEB_URL
-        value: https://justreference.onrender.com
+        value: https://justreference.vercel.app
       - key: CORS_ORIGINS
-        value: https://justreference.onrender.com
+        value: https://justreference.vercel.app,https://justreference.onrender.com
       # Requests from the Vercel frontend pass Vercel's proxy and Render's, so the client IP is 2 hops back.
       - key: TRUST_PROXY
         value: "2"
