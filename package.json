@@ -1,0 +1,23 @@
+{
+  "name": "justreference",
+  "private": true,
+  "description": "JustReference.in — marketplace, referral and wallet platform (MERN monorepo)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @jr/web",
+    "build": "npm run build -w @jr/web",
+    "preview": "npm run preview -w @jr/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm test -w @jr/api",
+    "test:e2e": "playwright test -c e2e"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1"
+  }
+}

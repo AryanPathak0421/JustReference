@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.claude/settings.local.json
+coverage/
+uploads/
+.data/
+test-results/
+playwright-report/
+
+# Local notes with real logins (never commit)
+*.local.md

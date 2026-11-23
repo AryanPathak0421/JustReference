@@ -1,0 +1,99 @@
+@import '@fontsource-variable/inter';
+@import 'tailwindcss';
+
+/*
+ * JustReference design tokens.
+ * Every colour, radius and shadow used in the app comes from here — do not hard-code hex values in components.
+ */
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  /* Brand */
+  --color-navy-950: #0a1430;
+  --color-navy-900: #0f1e46;
+  --color-navy-800: #16295e;
+  --color-navy-700: #1e3a8a;
+  --color-navy-100: #e8ecf7;
+  --color-brand-600: #2f5bea;
+  --color-brand-500: #4a74f5;
+  --color-brand-100: #dfe7ff;
+  --color-brand-50: #eef3ff;
+  --color-accent-600: #6d4ae8;
+  --color-accent-50: #f3efff;
+
+  /* Neutrals */
+  --color-ink: #0f172a;
+  --color-ink-2: #334155;
+  --color-muted: #64748b;
+  --color-subtle: #94a3b8;
+  --color-line: #e6e9f0;
+  --color-line-2: #eef1f6;
+  --color-canvas: #f7f8fb;
+
+  /* Status */
+  --color-success: #0f9d6b;
+  --color-success-50: #e8f7f1;
+  --color-warn: #b7791f;
+  --color-warn-50: #fdf6e7;
+  --color-danger: #d14343;
+  --color-danger-50: #fdeeee;
+
+  --radius-card: 16px;
+  --radius-xl2: 20px;
+
+  --shadow-xs: 0 1px 2px rgb(15 23 42 / 0.05);
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px rgb(15 23 42 / 0.06);
+  --shadow-pop: 0 12px 40px rgb(15 30 70 / 0.12);
+
+  --animate-fade-in: fade-in 0.25s ease-out both;
+  --animate-slide-in: slide-in 0.25s ease-out both;
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes slide-in {
+    from { transform: translateX(-100%); }
+    to { transform: none; }
+  }
+}
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body {
+    @apply bg-white font-sans text-ink antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+  }
+  h1, h2, h3 { letter-spacing: -0.02em; }
+}
+
+@utility container-page {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 1200px;
+  padding-inline: 16px;
+  @media (width >= 40rem) { padding-inline: 24px; }
+}
+
+@utility text-gradient {
+  background: linear-gradient(90deg, var(--color-brand-600), var(--color-accent-600));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-pop);
+    border-color: #dbe2f0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
