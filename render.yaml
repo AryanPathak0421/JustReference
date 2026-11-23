@@ -30,5 +30,8 @@ services:
         value: https://justreference.onrender.com
       - key: CORS_ORIGINS
         value: https://justreference.onrender.com
+      # Requests from the Vercel frontend pass Vercel's proxy and Render's, so the client IP is 2 hops back.
+      - key: TRUST_PROXY
+        value: "2"
       - key: LOG_LEVEL
         value: info

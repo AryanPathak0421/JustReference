@@ -27,7 +27,7 @@ export function createApp() {
   const app = express();
   app.disable('x-powered-by');
   // Behind IIS/Nginx in production: trust the first proxy so req.ip is the client address.
-  app.set('trust proxy', env.NODE_ENV === 'production' ? 1 : false);
+  app.set('trust proxy', env.TRUST_PROXY ?? (env.NODE_ENV === 'production' ? 1 : false));
 
   // Optional: serve the built web app from the same origin (single-service deploys, e.g. Render).
   // Same origin keeps the refresh and CSRF cookies first-party.

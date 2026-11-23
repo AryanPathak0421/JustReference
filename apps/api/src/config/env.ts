@@ -24,6 +24,8 @@ const schema = z
     UPLOAD_DIR: z.string().default('./uploads'),
     /** Optional: folder with the built web app (apps/web/dist) to serve from the same origin as the API. */
     WEB_DIST_DIR: z.string().optional(),
+    /** Proxy hops in front of the API (Render = 1; Vercel → Render = 2). Default: 1 in production, 0 otherwise. */
+    TRUST_PROXY: z.coerce.number().int().min(0).max(5).optional(),
     RATE_LIMIT_DISABLED: z.stringbool().default(false),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
     SEED_SUPERADMIN_NAME: z.string().default('Super Admin'),
