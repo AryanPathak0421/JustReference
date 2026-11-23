@@ -22,6 +22,8 @@ const schema = z
     STORAGE_DRIVER: z.enum(['local']).default('local'),
     /** Local storage root (relative to the API's working directory). Public and private files live in separate folders. */
     UPLOAD_DIR: z.string().default('./uploads'),
+    /** Optional: folder with the built web app (apps/web/dist) to serve from the same origin as the API. */
+    WEB_DIST_DIR: z.string().optional(),
     RATE_LIMIT_DISABLED: z.stringbool().default(false),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
     SEED_SUPERADMIN_NAME: z.string().default('Super Admin'),

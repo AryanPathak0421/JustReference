@@ -1,0 +1,31 @@
+# Render Blueprint: one web service runs the API and serves the built web app from the same origin
+# (keeps the login and CSRF cookies first-party). Secrets marked `sync: false` are entered in the
+# Render dashboard when the Blueprint is created; they are never stored in this file.
+services:
+  - type: web
+    name: justreference
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: npm ci --include=dev && npm run build -w @jr/web && npm run build -w @jr/api
+    startCommand: node --enable-source-maps apps/api/dist/server.js
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: WEB_DIST_DIR
+        value: apps/web/dist
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      # Encrypts PAN / bank numbers (32 random bytes, base64). Must never change once real data is stored.
+      - key: FIELD_ENCRYPTION_KEY
+        generateValue: true
+      # After the first deploy, add PUBLIC_WEB_URL and CORS_ORIGINS in the dashboard set to the service URL
+      # (e.g. https://justreference.onrender.com) so links in invitations point to the live site.
+      - key: LOG_LEVEL
+        value: info

@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import express, { Router } from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -26,6 +28,25 @@ export function createApp() {
   app.disable('x-powered-by');
   // Behind IIS/Nginx in production: trust the first proxy so req.ip is the client address.
   app.set('trust proxy', env.NODE_ENV === 'production' ? 1 : false);
+
+  // Optional: serve the built web app from the same origin (single-service deploys, e.g. Render).
+  // Same origin keeps the refresh and CSRF cookies first-party.
+  const webDir = env.WEB_DIST_DIR ? resolve(env.WEB_DIST_DIR) : null;
+  if (webDir && existsSync(join(webDir, 'index.html'))) {
+    const webHeaders = helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'", "'unsafe-inline'"], imgSrc: ["'self'", 'data:', 'blob:'],
+          fontSrc: ["'self'", 'data:'], connectSrc: ["'self'"], frameSrc: ["'self'", 'blob:'], objectSrc: ["'none'"], frameAncestors: ["'none'"], baseUri: ["'self'"],
+        },
+      },
+    });
+    const web = Router();
+    web.use(webHeaders, express.static(webDir, { index: false, maxAge: '1y', immutable: true }));
+    // SPA fallback for page routes (not /api); index.html is never cached so new deploys show up at once.
+    web.get(/^(?!\/api\/).*/, webHeaders, (_req, res) => { res.setHeader('Cache-Control', 'no-cache'); res.sendFile(join(webDir, 'index.html')); });
+    app.use(web);
+  }
 
   app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } } }));
   app.use(cors({ origin: env.CORS_ORIGINS.split(',').map((s) => s.trim()), credentials: true }));
