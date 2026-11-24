@@ -19,6 +19,10 @@ const schema = z
     ACCESS_TOKEN_TTL_MIN: z.coerce.number().int().min(1).max(60).default(15),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
     MESSAGING_DRIVER: z.enum(['console']).default('console'),
+    /** Online payments. `none` turns checkout off; `sandbox` simulates a gateway (no real money moves). */
+    PAYMENT_DRIVER: z.enum(['none', 'sandbox']).default('none'),
+    /** Must be set on purpose to use fake payments on a production server (demo sites only). */
+    ALLOW_SANDBOX_PAYMENTS: z.stringbool().default(false),
     STORAGE_DRIVER: z.enum(['local']).default('local'),
     /** Local storage root (relative to the API's working directory). Public and private files live in separate folders. */
     UPLOAD_DIR: z.string().default('./uploads'),
@@ -42,6 +46,10 @@ const schema = z
   .refine((e) => e.NODE_ENV !== 'production' || !e.RATE_LIMIT_DISABLED, {
     path: ['RATE_LIMIT_DISABLED'],
     message: 'Rate limiting cannot be disabled in production',
+  })
+  .refine((e) => e.NODE_ENV !== 'production' || e.PAYMENT_DRIVER !== 'sandbox' || e.ALLOW_SANDBOX_PAYMENTS, {
+    path: ['PAYMENT_DRIVER'],
+    message: 'Sandbox payments in production need ALLOW_SANDBOX_PAYMENTS=true (demo sites only)',
   });
 
 export type Env = z.infer<typeof schema>;

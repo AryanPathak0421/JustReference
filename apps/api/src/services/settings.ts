@@ -1,6 +1,6 @@
 import {
-  authSettingsSchema, engagementSettingsSchema, generalSettingsSchema, maintenanceSettingsSchema,
-  type AuthSettings, type EngagementSettings, type GeneralSettings, type MaintenanceSettings, type SettingsGroup,
+  authSettingsSchema, commerceSettingsSchema, engagementSettingsSchema, generalSettingsSchema, maintenanceSettingsSchema,
+  type AuthSettings, type CommerceSettings, type EngagementSettings, type GeneralSettings, type MaintenanceSettings, type SettingsGroup,
 } from '@jr/shared';
 import { SettingModel } from '../models/system';
 
@@ -9,15 +9,17 @@ interface SettingsMap {
   auth: AuthSettings;
   maintenance: MaintenanceSettings;
   engagement: EngagementSettings;
+  commerce: CommerceSettings;
 }
 
-export const SETTINGS_SCHEMAS = { general: generalSettingsSchema, auth: authSettingsSchema, maintenance: maintenanceSettingsSchema, engagement: engagementSettingsSchema };
+export const SETTINGS_SCHEMAS = { general: generalSettingsSchema, auth: authSettingsSchema, maintenance: maintenanceSettingsSchema, engagement: engagementSettingsSchema, commerce: commerceSettingsSchema };
 
 export const SETTINGS_DEFAULTS: SettingsMap = {
   general: { siteName: 'JustReference', supportEmail: '', supportPhone: '', address: '', social: {} },
   auth: { otpChannel: 'whatsapp', otpTtlMinutes: 5, memberIdPrefix: 'JR' },
   maintenance: { enabled: false, message: 'We’re making some improvements. Please check back shortly.' },
   engagement: { birthdayGreetings: true, birthdayReminders: true, greetingChannel: 'whatsapp' },
+  commerce: { unpaidExpiryMinutes: 60, completionBy: 'either', projectRequestsNeedApproval: true },
 };
 
 // Settings are read on hot paths (maintenance check on every request), so cache briefly.

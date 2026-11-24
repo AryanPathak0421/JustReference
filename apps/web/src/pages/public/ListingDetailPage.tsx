@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { BadgeCheck, Calendar, Clock, Download, FileText, Globe, Info, MapPin, PackageX, ShoppingCart, Truck } from 'lucide-react';
+import { BadgeCheck, Calendar, Clock, Download, FileText, Globe, MapPin, PackageX, Truck } from 'lucide-react';
 import type { ListingDetail, ListingType } from '@jr/shared';
 import { formatINR } from '@jr/shared/money';
-import { Alert, Badge, Button, ButtonLink, Card, EmptyState, ErrorState, PageHeader, Skeleton } from '@/design-system';
+import { Alert, Badge, ButtonLink, Card, EmptyState, ErrorState, PageHeader, Skeleton } from '@/design-system';
 import { useListing } from '@/features/catalog/api';
 import { ListingCard, ListingImage, SampleTag, VendorLogo } from '@/features/catalog/components';
+import { BuyBox } from '@/features/commerce/components';
 import { ApiError } from '@/lib/api';
 import { cn } from '@/lib/cn';
 
@@ -69,7 +70,7 @@ export function ListingDetailPage({ type }: { type: ListingType }) {
             <div className="text-[30px] font-extrabold tracking-tight text-navy-950">
               {formatINR(l.pricePaise)} {l.priceNote && <span className="text-[14px] font-medium text-muted">{l.priceNote}</span>}
             </div>
-            <p className="text-[13px] text-muted">{l.gstRatePct > 0 ? `+ ${l.gstRatePct}% GST` : 'GST exempt'}</p>
+            <p className="text-[13px] text-muted">{l.gstRatePct > 0 ? `+ ${l.gstRatePct}% GST, if the seller is GST registered` : 'GST exempt'}</p>
             <ul className="mt-4 grid gap-2 text-[14px] text-ink-2">
               <li className="flex items-center gap-2"><MapPin className="size-4 text-subtle" />{l.city}</li>
               {l.product && <li className="flex items-center gap-2"><Truck className="size-4 text-subtle" />{{ in_stock: 'In stock', out_of_stock: 'Out of stock', made_to_order: 'Made to order' }[l.product.availability]}{l.product.unit && ` · sold per ${l.product.unit}`}</li>}
@@ -77,10 +78,7 @@ export function ListingDetailPage({ type }: { type: ListingType }) {
               {l.service?.remote && <li className="flex items-center gap-2"><Globe className="size-4 text-subtle" />Can be delivered remotely</li>}
               {l.project && <li className="flex items-center gap-2"><Clock className="size-4 text-subtle" />About {l.project.durationDays} days</li>}
             </ul>
-            <Button size="lg" className="mt-5 w-full" disabled leftIcon={<ShoppingCart className="size-4" />}>
-              {l.type === 'product' ? 'Add to cart' : l.type === 'service' ? 'Book this service' : 'Request this project'}
-            </Button>
-            <p className="mt-2 flex items-start gap-1.5 text-[12.5px] text-muted"><Info className="mt-0.5 size-3.5 flex-none" />Ordering and secure payments open in Phase 4. Until then, contact the vendor through their profile.</p>
+            <BuyBox listing={l} />
           </Card>
 
           <Card className="p-5">

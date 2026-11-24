@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 /**
  * Browser smoke tests against the local dev stack (web :5173 → API :4000 → MongoDB :27117).
- * Start `npm run db -w @jr/api`, `npm run dev -w @jr/api` and `npm run dev` first (or let webServer start the web app).
+ * Start `npm run db -w @jr/api`, `npm run dev:local -w @jr/api` and `npm run dev` first (or let webServer start the web app).
  * Tests create users with unique @example.test emails in the dev database.
  * Uses the installed Microsoft Edge (no browser download).
  */

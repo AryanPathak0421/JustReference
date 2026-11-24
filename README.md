@@ -6,7 +6,7 @@ Marketplace (products, services, projects), referral management, wallet and vend
 - **Feature status (what's built / tested / pending):** [docs/CHECKLIST.md](docs/CHECKLIST.md)
 - **API reference:** [docs/api/README.md](docs/api/README.md)
 
-## Current status: Phases 1–3 complete
+## Current status: Phases 1–4 complete (payments in sandbox only)
 
 Working against a real API and database:
 - **Accounts (Phase 1):**
@@ -26,8 +26,12 @@ Working against a real API and database:
   - Referral link sharing, all/direct/indirect lists, the referral tree and invitations.
   - Daily birthday greetings and sponsor reminders (configurable in Settings → Birthdays).
   - Admin: member bank details with audited reveal, any member's referral network, KYC review on the member page.
+- **Commerce (Phase 4):**
+  - Cart, checkout, orders for buyers, vendors and admins, cancellations, refunds and GST invoices.
+  - Project requests and bidding.
+  - Payments through a simulated gateway; a real one still has to be connected.
 
-Still on sample data: dashboard metrics for orders, earnings and wallet (Phases 4–5), plus homepage testimonials and blog (Phase 6). Every such screen shows a **Sample data** badge. Sample vendors and listings in the database are flagged `isSample` and tagged "Sample" in the UI.
+Still on sample data: dashboard metrics for earnings and wallet (Phase 5), plus homepage testimonials and blog (Phase 6). Every such screen shows a **Sample data** badge. Sample vendors and listings in the database are flagged `isSample` and tagged "Sample" in the UI.
 
 ## Getting started
 
@@ -37,11 +41,12 @@ Requirements: Node.js 22+ (developed on 24) and MongoDB 7+ installed locally (de
 npm install
 node apps/api/scripts/init-env.mjs      # creates apps/api/.env with random dev secrets (once)
 npm run db -w @jr/api                   # terminal 1: local MongoDB replica set on port 27117
-npm run seed:demo -w @jr/api            # once: roles, dev Super Admin, 24 SAMPLE members
-npm run dev -w @jr/api                  # terminal 2: API on http://localhost:4000
+npm run seed:demo:local -w @jr/api      # once: roles, dev Super Admin, 24 SAMPLE members
+npm run dev:local -w @jr/api            # terminal 2: API on http://localhost:4000
 npm run dev                             # terminal 3: web app on http://localhost:5173
 ```
 
+- **Local overrides:** `dev:local` and `seed:demo:local` also read `apps/api/.env.local` (git-ignored). Put your local `MONGODB_URI` and `PAYMENT_DRIVER=sandbox` there when `.env` points at a shared or live database, so development never touches it.
 - **Dev Super Admin login:** the email and password are in `apps/api/.env` (`SEED_SUPERADMIN_EMAIL` / `SEED_SUPERADMIN_PASSWORD`). They were generated on your machine, and `.env` is git-ignored.
 - **OTP codes in development:** no SMS/WhatsApp provider is connected yet, so codes go to the **dev outbox** at http://localhost:5173/dev/outbox instead of a phone.
 - **Sample members and vendors** use `@example.test` emails and are flagged `isSample: true` in the database. They can't log in (random passwords), except the root of the sample referral tree, `aarav.sharma@example.test`, whose password is `SEED_DEMO_MEMBER_PASSWORD` in `apps/api/.env` (add that line yourself if your `.env` predates Phase 3, then re-run `seed:demo`).

@@ -161,14 +161,34 @@ Legend
 3. Profile completion appeared twice on the profile page. Now shown once until complete.
 
 ## Phase 4: Commerce
-| Item | Status |
-|---|---|
-| Cart, checkout, coupon application, multi-vendor order split | ⬜ |
-| Orders: buyer / vendor / admin views, statuses, tracking, cancel | ⬜ |
-| Payment gateway adapter (sandbox), webhook verification, payment history | ⬜ |
-| Invoices (GST, sales/purchase, sequential numbering, PDF) | ⬜ |
-| Refunds | ⬜ |
-| Project requests and bidding (post, bid, accept/reject, admin monitor) | ⬜ |
+
+| Item | Status | Notes / how it was tested |
+|---|---|---|
+| Cart and checkout: re-priced on the server, one order per vendor and type (each project separately), double-submit safe, stock reserved without overselling | ✅ | API tests + Playwright |
+| Unpaid orders expire (configurable) and stock is released | ✅ | API tests |
+| Payment gateway interface + **sandbox** driver; an order is confirmed only by a signed notification with the right amount; duplicate and late payments are flagged for refund | ✅ sandbox only | API tests + Playwright. **No real gateway is connected** |
+| Orders: buyer, vendor and admin views, filters, statuses, shipping/tracking, completion, history | ✅ | API tests + Playwright |
+| Cancellation: unpaid at once; paid = request that the vendor or an admin decides | ✅ | API tests |
+| Refunds: full/partial, never more than paid, retry-safe, admin-decided amount, credit notes | ✅ sandbox only | API tests + Playwright |
+| GST invoices: per-seller financial-year numbering, CGST/SGST or IGST, PDF, purchase/sales lists, monthly GST summary, billing history | ✅ | API tests + Playwright + PDF checked by eye |
+| Projects: advance + balance payments, running/completed/cancelled lists | ✅ | API tests + Playwright |
+| Bidding: post → admin approval (configurable) → sealed vendor bids → accept/reject → order; admin monitor | ✅ | API tests + Playwright |
+| Vendor order summary, customers; order rules in Super Admin → Payment gateway | ✅ | Playwright (page loads); settings save not tested in a browser |
+| Order figures on member, vendor and admin dashboards | ✅ | Loaded in Playwright. Wallet, earnings and charts stay sample data |
+| All commerce screens at 375 px | ✅ | Playwright |
+
+**Not done in Phase 4, and why:**
+- **Live payment gateway:** needs your choice of provider and keys. Payments are off by default (`PAYMENT_DRIVER=none`); sandbox must be switched on explicitly.
+- **Coupons at checkout:** moved to Phase 5, where coupons are built.
+- **Member sales:** the menu pages explain that selling needs a vendor account until you decide otherwise.
+- **Delivery charges, returns/exchanges, cash on delivery:** no rules given.
+- **Ratings and reviews:** moved to Phase 6 with customer feedback.
+- **Order notifications by SMS/WhatsApp/email:** Phase 6.
+
+**Assumptions to confirm (ideally with your accountant):** GST is added on top of the listed price and only for sellers with a GSTIN; an invoice is issued when the order is fully paid (nothing is issued for a project advance alone); the platform issues invoices on the seller's behalf.
+
+**Bugs found and fixed during Phase 4 testing:**
+1. The gateway webhook asked for a login: `/payments/:id/sandbox` also matched `/payments/webhook/sandbox`. The simulator route was renamed.
 
 ## Phase 5: Money
 | Item | Status |

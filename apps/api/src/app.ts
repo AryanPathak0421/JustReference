@@ -22,6 +22,8 @@ import adminVendorsRouter from './modules/admin-vendors';
 import publicCatalogRouter, { mediaRouter } from './modules/public-catalog';
 import { authenticate, requireRole } from './middleware/auth';
 import adminMemberExtrasRouter from './modules/admin-member-extras';
+import { adminCommerceRouter, buyerRouter, vendorCommerceRouter } from './modules/commerce';
+import { adminBiddingRouter, projectRequestsRouter, vendorBiddingRouter } from './modules/bidding';
 
 export function createApp() {
   const app = express();
@@ -50,7 +52,13 @@ export function createApp() {
 
   app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } } }));
   app.use(cors({ origin: env.CORS_ORIGINS.split(',').map((s) => s.trim()), credentials: true }));
-  app.use(express.json({ limit: '100kb' }));
+  // Payment webhooks are signed over the exact bytes sent, so keep them.
+  app.use(express.json({
+    limit: '100kb',
+    verify: (req, _res, buf) => {
+      if (req.url?.startsWith('/api/v1/payments/webhook/')) (req as { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+    },
+  }));
   app.use(cookieParser());
   if (env.NODE_ENV !== 'test') {
     app.use(pinoHttp({
@@ -71,17 +79,21 @@ export function createApp() {
   v1.use('/dev', devRouter);
   v1.use('/auth', authRouter);
   v1.use('/me', meRouter);
+  v1.use('/', buyerRouter); // /cart, /checkout, /orders, /payments, /invoices (per-route authentication)
   v1.use('/', rolesRouter); // /permissions and /roles
   v1.use('/super-admin/admins', adminsRouter);
   v1.use('/media', mediaRouter);
   v1.use('/catalog', publicCatalogRouter);
   v1.use('/categories', categoriesPublicRouter);
-  v1.use('/vendor', vendorRouter);
+  v1.use('/vendor', vendorRouter, vendorCommerceRouter, vendorBiddingRouter);
+  v1.use('/project-requests', projectRequestsRouter);
   v1.use('/admin/members', adminMemberExtrasRouter, membersRouter);
   const admin = Router();
   admin.use(authenticate, requireRole('admin', 'super_admin'));
   admin.use(adminCatalogRouter);
   admin.use(adminVendorsRouter);
+  admin.use(adminCommerceRouter);
+  admin.use(adminBiddingRouter);
   v1.use('/admin', admin);
   v1.use('/settings', settingsRouter);
   v1.use('/audit', auditRouter);

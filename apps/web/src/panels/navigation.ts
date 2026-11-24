@@ -57,7 +57,7 @@ const member: PanelConfig = {
         {
           label: 'Projects', icon: FolderKanban, to: `${m}/projects`, phase: 4,
           children: [
-            leaf('Running projects', `${m}/projects/running`, 4), leaf('Completed projects', `${m}/projects/completed`, 4),
+            leaf('My project requests', `${m}/projects/requests`, 4), leaf('Running projects', `${m}/projects/running`, 4), leaf('Completed projects', `${m}/projects/completed`, 4),
             leaf('Cancelled projects', `${m}/projects/cancelled`, 4), leaf('Create new project', `${m}/projects/new`, 4),
           ],
         },
@@ -154,7 +154,7 @@ const vendor: PanelConfig = {
         { label: 'Products', icon: Package, to: `${v}/products`, phase: 2 },
         { label: 'Services', icon: Wrench, to: `${v}/services`, phase: 2 },
         { label: 'Projects', icon: FolderKanban, to: `${v}/projects`, phase: 2 },
-        { label: 'Bids', icon: Gavel, to: `${v}/bids`, phase: 4 },
+        { label: 'Bids', icon: Gavel, to: `${v}/bids`, phase: 4, perm: 'vendor.bids.submit' },
       ],
     },
     {
@@ -235,14 +235,14 @@ const admin: PanelConfig = {
         { label: 'Services', icon: Wrench, to: `${a}/services`, phase: 2, perm: 'catalog.view' },
         { label: 'Projects', icon: FolderKanban, to: `${a}/projects`, phase: 2, perm: 'catalog.view' },
         { label: 'Categories', icon: FolderTree, to: `${a}/categories`, phase: 2, perm: 'catalog.view' },
-        { label: 'Bids monitor', icon: Gavel, to: `${a}/bids`, phase: 4 },
+        { label: 'Bids monitor', icon: Gavel, to: `${a}/bids`, phase: 4, perm: 'bids.view' },
       ],
     },
     {
       label: 'Finance',
       items: [
-        { label: 'Orders', icon: ReceiptIndianRupee, to: `${a}/orders`, phase: 4 },
-        { label: 'Invoice search', icon: FileText, to: `${a}/invoices`, phase: 4 },
+        { label: 'Orders', icon: ReceiptIndianRupee, to: `${a}/orders`, phase: 4, perm: 'orders.view' },
+        { label: 'Invoice search', icon: FileText, to: `${a}/invoices`, phase: 4, perm: 'orders.view' },
         {
           label: 'Commissions', icon: HandCoins, to: `${a}/commissions`, phase: 5,
           children: [leaf('Pay commissions', `${a}/commissions/pay`, 5), leaf('Referral income', `${a}/commissions/referral-income`, 5), leaf('Investment income', `${a}/commissions/investment-income`, 5)],

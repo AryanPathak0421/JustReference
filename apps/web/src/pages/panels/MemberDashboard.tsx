@@ -8,6 +8,7 @@ import { fetchMemberDashboard, type MemberDashboard as MD } from '@/features/das
 import { MoneyTrendCard } from '@/features/dashboard/charts';
 import { fmtDate, MiniStats, StatGrid } from '@/features/dashboard/widgets';
 import { useAsync } from '@/lib/useAsync';
+import { orderStats } from '@/features/commerce/api';
 import { getMyProfile, getReferralSummary } from '@/features/members/api';
 import { BirthdaysList, CompletionMeter } from '@/features/members/components';
 import { useAuth } from '@/features/auth/AuthProvider';
@@ -70,6 +71,8 @@ export function MemberDashboard() {
   // Real data (Phase 3): referral counts, birthdays and profile completion.
   const summary = useQuery({ queryKey: ['me', 'referral-summary'], queryFn: getReferralSummary });
   const profile = useQuery({ queryKey: ['me', 'profile'], queryFn: getMyProfile });
+  const orders = useQuery({ queryKey: ['orders', 'member', 'stats'], queryFn: () => orderStats('member') });
+  const o = orders.data;
   const r = summary.data;
 
   if (error) return <Card><ErrorState onRetry={reload} /></Card>;
@@ -82,7 +85,7 @@ export function MemberDashboard() {
         breadcrumbs={[{ label: 'Member', to: '/member' }, { label: 'Dashboard' }]}
         title="Dashboard"
         description="Here’s what’s happening with your account today."
-        actions={<><SampleDataBadge label="Wallet, earnings & orders are sample data" /><ButtonLink to="/member/purchases/new" size="sm" leftIcon={<Plus className="size-4" />}>New purchase</ButtonLink></>}
+        actions={<><SampleDataBadge label="Wallet, earnings, chart & notifications are sample data" /><ButtonLink to="/member/purchases/new" size="sm" leftIcon={<Plus className="size-4" />}>New purchase</ButtonLink></>}
       />
 
       <section className="relative flex flex-wrap items-center justify-between gap-5 overflow-hidden rounded-card bg-[linear-gradient(120deg,var(--color-navy-900),var(--color-navy-700)_55%,#3b3fb8)] p-6 text-white">
@@ -107,19 +110,19 @@ export function MemberDashboard() {
           { label: 'Wallet balance', value: s ? formatINR(s.walletPaise) : '', icon: Wallet, tone: 'blue', note: 'Available to use or withdraw' },
           { label: 'Total earnings', value: s ? formatINR(s.earningsPaise) : '', icon: TrendingUp, tone: 'green', delta: s ? `+${s.earningsDeltaPct}%` : undefined, note: 'vs last month' },
           { label: 'Total referrals', value: r ? String(r.total) : '', icon: Users, tone: 'violet', note: r ? `${r.direct} direct · ${r.indirect} indirect` : '' },
-          { label: 'Total purchases', value: s ? formatINR(s.purchasesPaise) : '', icon: ShoppingBag, tone: 'amber', note: 'Lifetime' },
+          { label: 'Total purchases', value: o ? formatINR(o.valuePaise) : '', icon: ShoppingBag, tone: 'amber', note: 'Paid, less refunds' },
         ]}
       />
 
       <MiniStats
         loading={loading || summary.isLoading}
         items={[
-          { label: 'Active orders', value: String(s?.activeOrders ?? ''), to: '/member/purchases/history' },
-          { label: 'Pending orders', value: String(s?.pendingOrders ?? ''), to: '/member/purchases/history' },
-          { label: 'Completed projects', value: String(s?.completedProjects ?? ''), to: '/member/projects/completed' },
+          { label: 'Active orders', value: String(o?.active ?? ''), to: '/member/purchases/history' },
+          { label: 'Pending orders', value: String(o?.pending ?? ''), to: '/member/purchases/history' },
+          { label: 'Completed projects', value: String(o?.completedProjects ?? ''), to: '/member/projects/completed' },
           { label: 'Direct referrals', value: String(r?.direct ?? ''), to: '/member/referrals/direct' },
           { label: 'Indirect referrals', value: String(r?.indirect ?? ''), to: '/member/referrals/indirect' },
-          { label: 'Subscription', value: data ? data.subscription.plan : '', to: '/member/epin/plans' },
+          { label: 'Subscription', value: '—', to: '/member/epin/plans' },
         ]}
       />
 

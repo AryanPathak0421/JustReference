@@ -4,11 +4,13 @@ import { connectDb, disconnectDb } from './config/db';
 import { createApp } from './app';
 import { ensureSystemData } from './seed/system';
 import { scheduleBirthdayJob } from './services/birthdays';
+import { scheduleOrderExpiry } from './services/orders';
 
 async function main() {
   await connectDb(env.MONGODB_URI);
   await ensureSystemData();
   scheduleBirthdayJob();
+  scheduleOrderExpiry();
   const server = createApp().listen(env.PORT, () => logger.info(`API listening on http://localhost:${env.PORT}/api/v1`));
 
   const shutdown = async (signal: string) => {

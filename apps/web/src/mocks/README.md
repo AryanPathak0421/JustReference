@@ -8,7 +8,7 @@ Rules:
 - As each phase connects a module to the real API (see `docs/CHECKLIST.md`), its `api.ts` switches to HTTP and the matching mock file is deleted.
 
 Remaining mocks:
-- `dashboard.ts`: dashboard metrics for orders, earnings and wallet (replaced in Phases 4–5). The member dashboard's referral counts, profile completion and birthdays are already real (Phase 3); the mock's referral fields are no longer shown.
+- `dashboard.ts`: dashboard metrics for earnings and wallet (replaced in Phase 5). Order figures are real (Phase 4). The member dashboard's referral counts, profile completion and birthdays are already real (Phase 3); the mock's referral fields are no longer shown.
 - `content.ts`: homepage testimonials and blog posts (Phase 6).
 
 Removed so far: `users.ts` (Phase 1, real login) and `catalog.ts` (Phase 2). Sample vendors and listings now live in the database via `npm run seed:demo -w @jr/api`, flagged `isSample`.

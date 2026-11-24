@@ -106,7 +106,7 @@ export const maintenanceSettingsSchema = z.object({
 });
 export type MaintenanceSettings = z.infer<typeof maintenanceSettingsSchema>;
 
-export const SETTINGS_GROUPS = ['general', 'auth', 'maintenance', 'engagement'] as const;
+export const SETTINGS_GROUPS = ['general', 'auth', 'maintenance', 'engagement', 'commerce'] as const;
 export type SettingsGroup = (typeof SETTINGS_GROUPS)[number];
 
 /* ---------------- Self-service */

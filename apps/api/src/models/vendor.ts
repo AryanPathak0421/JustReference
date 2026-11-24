@@ -24,6 +24,8 @@ const vendorSchema = new Schema(
     website: String,
     social: { facebook: String, instagram: String, linkedin: String, youtube: String, twitter: String },
     logoKey: String,
+    /** Short seller number used in invoice numbers; assigned with the first invoice. */
+    sellerNo: Number,
     status: { type: String, enum: VENDOR_STATUSES, default: 'draft' },
     statusReason: { type: String, maxlength: 300 },
     submittedAt: Date,

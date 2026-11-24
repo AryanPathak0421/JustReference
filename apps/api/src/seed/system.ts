@@ -4,7 +4,7 @@ import { RoleModel } from '../models/security';
 /**
  * Idempotent system data, run on every API start:
  * - "Full admin" always grants exactly the current admin permission catalog;
- * - "Standard vendor" (given to every approved vendor) can manage their own listings, with admin approval.
+ * - "Standard vendor" (given to every approved vendor) can manage their own listings (with admin approval), process their orders and bid on projects.
  */
 export async function ensureSystemData() {
   await RoleModel.findOneAndUpdate(
@@ -18,7 +18,7 @@ export async function ensureSystemData() {
   await RoleModel.findOneAndUpdate(
     { key: STANDARD_VENDOR_ROLE_KEY },
     {
-      $set: { permissions: ['vendor.listings.manage'], isSystem: true, scope: 'vendor' },
+      $set: { permissions: ['vendor.listings.manage', 'vendor.orders.manage', 'vendor.bids.submit'], isSystem: true, scope: 'vendor' },
       $setOnInsert: { name: 'Standard vendor', description: 'Manage own listings. New and edited listings need admin approval.' },
     },
     { upsert: true },

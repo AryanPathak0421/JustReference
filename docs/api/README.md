@@ -153,3 +153,43 @@ Works for anyone with a member record (members and vendors).
 | POST | `/admin/members/:id/documents/:docId/decision` | `members.bank` — `{ status: approved\|rejected }` |
 | GET | `/admin/members/:id/referrals/summary` · `/referrals` · `/referrals/tree` | `members.view` |
 | GET / PUT | `/settings/engagement` | `settings.view` / `settings.edit` — birthday greetings, sponsor reminders, channel |
+
+## Commerce: buyer (role member, Phase 4)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/cart` | Priced on the server |
+| POST / PATCH / DELETE | `/cart/items[/:id]` | |
+| POST | `/checkout` | `{ address, expectedTotalPaise, idempotencyKey }`; 409 `PRICE_CHANGED` / `CART_PROBLEM`, 503 `PAYMENTS_OFF` |
+| GET | `/orders` · `/orders/stats` · `/orders/:id` | Own orders |
+| POST | `/orders/:id/pay` · `/cancel` · `/complete` | |
+| GET | `/payments[/:id]` | |
+| POST | `/payments/:id/simulate` | Sandbox driver only |
+| POST | `/payments/webhook/:provider` | No login; HMAC signature over the raw body in `x-webhook-signature` |
+| GET | `/invoices` · `/invoices/gst-summary` · `/invoices/:id/pdf` | |
+| GET / POST | `/project-requests[/:id]` | 10 a day |
+| POST | `/project-requests/:id/cancel` · `/bids/:bidId/accept` · `/bids/:bidId/reject` | |
+
+## Commerce: vendor (`/vendor`)
+
+Orders are visible only once paid. Changes need `vendor.orders.manage`; bidding needs `vendor.bids.submit` and an approved business.
+
+| Method | Path |
+|---|---|
+| GET | `/vendor/orders` · `/stats` · `/:id` |
+| POST | `/vendor/orders/:id/status` · `/cancel` · `/cancellation` |
+| GET | `/vendor/customers` · `/vendor/invoices` · `/vendor/invoices/gst-summary` · `/vendor/invoices/:id/pdf` |
+| GET | `/vendor/project-requests[/:id]` (own bid only) |
+| PUT / DELETE | `/vendor/project-requests/:id/bid` |
+
+## Commerce: admin (`/admin`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/admin/orders` · `/stats` · `/:id`, `/admin/invoices[/:id/pdf]` | `orders.view` |
+| POST | `/admin/orders/:id/status` · `/cancel` · `/cancellation` | `orders.manage` (audited) |
+| POST | `/admin/orders/:id/refunds` · `/refund-request/dismiss` | `orders.refund` (audited) |
+| GET | `/admin/project-requests[/:id]` | `bids.view` |
+| POST | `/admin/project-requests/:id/decision` · `/close` | `bids.moderate` (audited) |
+| GET | `/admin/payment-gateway` | `settings.view` |
+| GET / PUT | `/settings/commerce` | `settings.view` / `settings.edit` |

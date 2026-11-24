@@ -17,6 +17,11 @@ export const PERMISSIONS = [
   { key: 'catalog.view', group: 'Catalog', label: 'View all listings, including unpublished ones' },
   { key: 'catalog.manage', group: 'Catalog', label: 'Manage categories; create, edit and remove listings' },
   { key: 'catalog.approve', group: 'Catalog', label: 'Approve, reject and feature listings' },
+  { key: 'orders.view', group: 'Orders', label: 'View orders, payments and invoices' },
+  { key: 'orders.manage', group: 'Orders', label: 'Update order status, decide cancellations' },
+  { key: 'orders.refund', group: 'Orders', label: 'Issue refunds' },
+  { key: 'bids.view', group: 'Bidding', label: 'View project requests and bids' },
+  { key: 'bids.moderate', group: 'Bidding', label: 'Approve, reject and close project requests' },
   { key: 'settings.view', group: 'Settings', label: 'View website settings' },
   { key: 'settings.edit', group: 'Settings', label: 'Change website settings' },
   { key: 'maintenance.manage', group: 'Settings', label: 'Turn maintenance mode on or off' },
@@ -30,6 +35,8 @@ export const PERMISSION_KEYS = PERMISSIONS.map((p) => p.key) as Permission[];
 export const VENDOR_PERMISSIONS = [
   { key: 'vendor.listings.manage', group: 'Listings', label: 'Create and edit their own products, services and projects' },
   { key: 'vendor.listings.autopublish', group: 'Listings', label: 'Publish listings without admin approval' },
+  { key: 'vendor.orders.manage', group: 'Orders', label: 'Process their own orders and decide cancellations' },
+  { key: 'vendor.bids.submit', group: 'Bidding', label: 'See open project requests and submit bids' },
 ] as const;
 
 export type VendorPermission = (typeof VENDOR_PERMISSIONS)[number]['key'];

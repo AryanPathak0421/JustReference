@@ -35,7 +35,7 @@ export const csrfProtect: RequestHandler = (req, _res, next) => {
 };
 
 /* ---------------- Maintenance mode: everyone except admins gets 503 (login stays open) */
-const MAINTENANCE_OPEN = ['/health', '/public/', '/auth/', '/dev/', '/media/'];
+const MAINTENANCE_OPEN = ['/health', '/public/', '/auth/', '/dev/', '/media/', '/payments/webhook/'];
 
 export const maintenanceGate: RequestHandler = async (req, _res, next) => {
   if (MAINTENANCE_OPEN.some((p) => req.path.startsWith(p))) return next();

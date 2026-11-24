@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { createBrowserRouter, type RouteObject } from 'react-router';
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 import { PublicLayout } from '@/layouts/PublicLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { HomePage } from '@/pages/public/HomePage';
@@ -8,6 +8,7 @@ import { PanelGuard } from '@/features/auth/guards';
 import type { PanelKey } from '@/panels/navigation';
 import type { ListingType } from '@jr/shared';
 import type { MembersPreset } from '@/pages/admin/MembersPage';
+import type { OrdersPreset } from '@/pages/commerce/OrderPages';
 
 /** Lazy route helper: `lazy(() => import(x), (m) => () => <m.Page />)`. */
 const lazy = <M,>(load: () => Promise<M>, pick: (m: M) => ComponentType) => async () => ({ Component: pick(await load()) });
@@ -50,6 +51,51 @@ const BankDetails = (key: PanelKey) => lazy(() => import('@/pages/admin/MemberEx
 const AdminReferrals = (key: PanelKey) => lazy(() => import('@/pages/admin/MemberExtrasPages'), (m) => () => <m.AdminReferralViewPage panelKey={key} />);
 const Approvals = (key: PanelKey) => lazy(() => import('@/pages/admin/CatalogAdminPages'), (m) => () => <m.ApprovalsPage panelKey={key} />);
 
+/* Commerce (Phase 4) */
+const Orders = (key: PanelKey, preset: OrdersPreset) => lazy(() => import('@/pages/commerce/OrderPages'), (m) => () => <m.OrdersPage key={preset.title} panelKey={key} preset={preset} />);
+const OrderPage = (key: PanelKey) => lazy(() => import('@/pages/commerce/OrderPages'), (m) => () => <m.OrderDetailPage panelKey={key} />);
+const Invoices = (key: PanelKey, title: string) => lazy(() => import('@/pages/commerce/OrderPages'), (m) => () => <m.InvoicesPage panelKey={key} title={title} />);
+const Requests = (key: PanelKey) => lazy(() => import('@/pages/commerce/BiddingPages'), (m) => () => <m.RequestsPage panelKey={key} />);
+const RequestDetail = (key: PanelKey) => lazy(() => import('@/pages/commerce/BiddingPages'), (m) => () => <m.RequestDetailPage panelKey={key} />);
+const Selling = lazy(() => import('@/pages/commerce/OrderPages'), (m) => m.MemberSellingPage);
+const myProjects = (path: string, title: string, q: Partial<OrdersPreset>) => ({ path: `projects/${path}`, lazy: Orders('member', { title, description: 'Projects you have ordered.', kind: 'project', ...q }) });
+const memberCommerce: RouteObject[] = [
+  { path: 'cart', lazy: lazy(() => import('@/pages/commerce/CartPages'), (m) => m.CartPage) },
+  { path: 'checkout', lazy: lazy(() => import('@/pages/commerce/CartPages'), (m) => m.CheckoutPage) },
+  { path: 'pay/:id', lazy: lazy(() => import('@/pages/commerce/CartPages'), (m) => m.PaymentPage) },
+  { path: 'purchases/new', element: <Navigate to="/products" replace /> },
+  { path: 'purchases/history', lazy: Orders('member', { title: 'My purchases', description: 'Every order you have placed.' }) },
+  { path: 'services/mine', lazy: Orders('member', { title: 'My services', description: 'Services you have booked.', kind: 'service' }) },
+  { path: 'orders/:id', lazy: OrderPage('member') },
+  myProjects('running', 'Running projects', { group: 'active' }),
+  myProjects('completed', 'Completed projects', { status: 'completed' }),
+  myProjects('cancelled', 'Cancelled projects', { group: 'cancelled' }),
+  { path: 'projects/new', lazy: lazy(() => import('@/pages/commerce/BiddingPages'), (m) => m.NewRequestPage) },
+  { path: 'projects/requests', lazy: Requests('member') },
+  { path: 'projects/requests/:id', lazy: RequestDetail('member') },
+  { path: 'invoices/purchases', lazy: Invoices('member', 'Purchase invoices') },
+  { path: 'invoices/billing', lazy: lazy(() => import('@/pages/commerce/OrderPages'), (m) => m.BillingPage) },
+  { path: 'invoices/gst', lazy: lazy(() => import('@/pages/commerce/OrderPages'), (m) => m.GstPage) },
+  ...['sales/new', 'sales/history', 'invoices/sales', 'products/new'].map((path) => ({ path, lazy: Selling })),
+];
+const vendorCommerce: RouteObject[] = [
+  { path: 'orders/all', lazy: Orders('vendor', { title: 'Orders', description: 'Paid orders for your listings and accepted bids.' }) },
+  { path: 'orders/summary', lazy: lazy(() => import('@/pages/commerce/OrderPages'), (m) => m.OrderSummaryPage) },
+  { path: 'orders/tracking', lazy: Orders('vendor', { title: 'Order tracking', description: 'Orders on their way to the buyer.', status: 'shipped' }) },
+  { path: 'orders/:id', lazy: OrderPage('vendor') },
+  { path: 'customers', lazy: lazy(() => import('@/pages/commerce/OrderPages'), (m) => m.CustomersPage) },
+  { path: 'invoices', lazy: Invoices('vendor', 'Sales invoices') },
+  { path: 'bids', lazy: Requests('vendor') },
+  { path: 'bids/:id', lazy: RequestDetail('vendor') },
+];
+const adminCommerce: RouteObject[] = [
+  { path: 'orders', lazy: Orders('admin', { title: 'Orders', description: 'Every order on the platform.' }) },
+  { path: 'orders/:id', lazy: OrderPage('admin') },
+  { path: 'invoices', lazy: Invoices('admin', 'Invoice search') },
+  { path: 'bids', lazy: Requests('admin') },
+  { path: 'bids/:id', lazy: RequestDetail('admin') },
+];
+
 const dashboards: Record<PanelKey, () => Promise<{ Component: ComponentType }>> = {
   member: lazy(() => import('@/pages/panels/MemberDashboard'), (m) => m.MemberDashboard),
   vendor: lazy(() => import('@/pages/panels/VendorDashboard'), (m) => m.VendorDashboard),
@@ -62,12 +108,14 @@ const PANEL_ROUTES: Record<PanelKey, RouteObject[]> = {
   member: [
     { path: 'profile', lazy: lazy(() => import('@/pages/member/MyProfilePage'), (m) => () => <m.MyProfilePage panelKey="member" />) },
     ...referralRoutes('member'),
+    ...memberCommerce,
   ],
   vendor: [
     { path: 'profile', lazy: lazy(() => import('@/pages/vendor/BusinessProfilePage'), (m) => m.BusinessProfilePage) },
     ...catalogRoutes('vendor', 'vendor'),
     { path: 'personal-profile', lazy: lazy(() => import('@/pages/member/MyProfilePage'), (m) => () => <m.MyProfilePage panelKey="vendor" />) },
     ...referralRoutes('vendor'),
+    ...vendorCommerce,
   ],
   admin: [
     { path: 'members/all', lazy: Members('admin', 'all') },
@@ -94,6 +142,7 @@ const PANEL_ROUTES: Record<PanelKey, RouteObject[]> = {
     { path: 'approvals', lazy: Approvals('admin') },
     { path: 'categories', lazy: Categories('admin') },
     ...catalogRoutes('admin', 'admin'),
+    ...adminCommerce,
   ],
   'super-admin': [
     { path: 'admins', lazy: lazy(() => import('@/pages/super/AdminsPage'), (m) => m.AdminsPage) },
@@ -103,6 +152,7 @@ const PANEL_ROUTES: Record<PanelKey, RouteObject[]> = {
     { path: 'members/bank-details', lazy: BankDetails('super-admin') },
     { path: 'members/referrals', lazy: AdminReferrals('super-admin') },
     { path: 'members/:id', lazy: MemberDetail('super-admin') },
+    { path: 'payment-gateway', lazy: lazy(() => import('@/pages/super/PaymentGatewayPage'), (m) => m.PaymentGatewayPage) },
     { path: 'settings', lazy: Settings('super-admin') },
     { path: 'maintenance', lazy: Maintenance('super-admin') },
     { path: 'vendors', lazy: VendorsAdmin('super-admin') },

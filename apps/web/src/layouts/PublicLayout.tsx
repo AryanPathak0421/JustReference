@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { ScrollReset } from '@/lib/ScrollReset';
 import * as RD from '@radix-ui/react-dialog';
-import { ArrowRight, Facebook, Instagram, Linkedin, Menu, X, Youtube } from 'lucide-react';
+import { ArrowRight, Facebook, Instagram, Linkedin, Menu, ShoppingCart, X, Youtube } from 'lucide-react';
 import { Button, ButtonLink, Logo } from '@/design-system';
 import { cn } from '@/lib/cn';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { homePath, MaintenanceScreen } from '@/features/auth/guards';
+import { useCart } from '@/features/commerce/api';
 import { usePublicStatus } from '@/features/system/api';
 
 function AccountButtons({ mobile }: { mobile?: boolean }) {
@@ -25,6 +26,19 @@ function AccountButtons({ mobile }: { mobile?: boolean }) {
       <ButtonLink to="/login" variant="ghost" className="hidden sm:inline-flex">Log in</ButtonLink>
       <ButtonLink to="/register">Join free</ButtonLink>
     </>
+  );
+}
+
+export function CartLink() {
+  const { data } = useCart();
+  const { user } = useAuth();
+  if (!user?.roles.includes('member')) return null;
+  const n = data?.count ?? 0;
+  return (
+    <Link to="/member/cart" aria-label={`Cart, ${n} item${n === 1 ? '' : 's'}`} className="relative grid size-10 flex-none place-items-center rounded-lg hover:bg-canvas">
+      <ShoppingCart className="size-5" />
+      {n > 0 && <span className="absolute top-0.5 right-0.5 grid h-4.5 min-w-4.5 place-items-center rounded-full bg-brand-600 px-1 text-[11px] font-bold text-white">{n}</span>}
+    </Link>
   );
 }
 
@@ -61,6 +75,7 @@ function Header() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <CartLink />
           <AccountButtons />
           <RD.Root open={open} onOpenChange={setOpen}>
             <RD.Trigger asChild>
