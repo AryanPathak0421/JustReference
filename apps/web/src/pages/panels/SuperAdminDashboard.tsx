@@ -1,111 +1,50 @@
 import { Link } from 'react-router';
-import { toast } from 'sonner';
-import { Activity, AlertTriangle, CheckCircle2, GitBranch, ReceiptIndianRupee, Shield, UserPlus } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { AlertTriangle, CheckCircle2, GitBranch, ReceiptIndianRupee, Shield, UserPlus, Users } from 'lucide-react';
 import { formatINR } from '@jr/shared/money';
-import { Avatar, Button, ButtonLink, Card, CardHeader, ConfirmDialog, DataTable, ErrorState, PageHeader, SampleDataBadge, Skeleton, StatusBadge, type Column } from '@/design-system';
-import { fetchSuperAdminDashboard, type SuperAdminDashboard as SD } from '@/features/dashboard/api';
+import { Avatar, ButtonLink, Card, CardHeader, ErrorState, PageHeader, Skeleton, StatusBadge } from '@/design-system';
+import { listAdmins, listAudit } from '@/features/admin/api';
+import { adminStats, getHealth } from '@/features/comms/api';
+import { orderStats } from '@/features/commerce/api';
+import { fmtDateTime } from '@/features/commerce/components';
+import { getMoneySettings, moneySummary } from '@/features/finance/api';
 import { MoneyTrendCard } from '@/features/dashboard/charts';
-import { fmtDate, StatGrid } from '@/features/dashboard/widgets';
-import { useAsync } from '@/lib/useAsync';
+import { StatGrid } from '@/features/dashboard/widgets';
 import { cn } from '@/lib/cn';
 
-type Admin = SD['admins'][number];
-
-const ADMIN_COLUMNS: Column<Admin>[] = [
-  {
-    key: 'name', header: 'Administrator', value: (r) => r.name,
-    cell: (r) => (
-      <span className="flex items-center gap-2.5">
-        <Avatar name={r.name} size={30} />
-        <span><b className="block font-semibold text-ink">{r.name}</b><span className="text-[12.5px] text-muted">{r.email}</span></span>
-      </span>
-    ),
-  },
-  { key: 'scope', header: 'Role', cell: (r) => r.scope, value: (r) => r.scope },
-  { key: 'last', header: 'Last active', cell: (r) => <span className="whitespace-nowrap">{fmtDate(r.lastActive)}</span>, value: (r) => r.lastActive },
-  { key: 'status', header: 'Status', cell: (r) => <StatusBadge status={r.status} />, value: (r) => r.status },
-  {
-    key: 'actions', header: '', align: 'right',
-    cell: (r) => (
-      <ConfirmDialog
-        title={r.status === 'active' ? `Deactivate ${r.name}?` : `Reactivate ${r.name}?`}
-        description={r.status === 'active' ? 'They will be signed out everywhere and lose admin access until reactivated. This is recorded in the audit log.' : 'They will regain the permissions of their assigned role.'}
-        confirmLabel={r.status === 'active' ? 'Deactivate' : 'Reactivate'}
-        tone={r.status === 'active' ? 'danger' : 'primary'}
-        onConfirm={async () => {
-          await new Promise((res) => setTimeout(res, 500));
-          toast.info('Not saved: preview mode', { description: 'Administrator management is connected to the API in Phase 1.' });
-        }}
-        trigger={(open) => <Button variant="ghost" size="sm" onClick={open}>{r.status === 'active' ? 'Deactivate' : 'Reactivate'}</Button>}
-      />
-    ),
-  },
-];
-
 export function SuperAdminDashboard() {
-  const { data, loading, error, reload } = useAsync(fetchSuperAdminDashboard, []);
-  if (error) return <Card><ErrorState onRetry={reload} /></Card>;
-  const s = data?.stats;
-
+  const admins = useQuery({ queryKey: ['dashboard', 'admins'], queryFn: () => listAdmins({ pageSize: 5 }) });
+  const audit = useQuery({ queryKey: ['dashboard', 'audit'], queryFn: () => listAudit({ pageSize: 6 }) });
+  const orders = useQuery({ queryKey: ['orders', 'admin', 'stats'], queryFn: () => orderStats('admin') });
+  const money = useQuery({ queryKey: ['finance', 'summary'], queryFn: moneySummary });
+  const health = useQuery({ queryKey: ['health'], queryFn: getHealth });
+  const rules = useQuery({ queryKey: ['finance', 'money-settings'], queryFn: getMoneySettings });
+  const stats = useQuery({ queryKey: ['admin-stats'], queryFn: adminStats });
+  const [o, m, h] = [orders.data, money.data, health.data];
+  const ready = h && m && rules.data ? [
+    { label: 'Commission rules', ok: m.activeRules > 0, state: m.activeRules ? `${m.activeRules} active` : 'None active', to: '/super-admin/commission-rules' },
+    { label: 'Platform fee', ok: rules.data.earnings.platformFeePct != null, state: rules.data.earnings.platformFeePct == null ? 'Not decided' : `${rules.data.earnings.platformFeePct}%`, to: '/super-admin/commission-rules' },
+    { label: 'Payment gateway', ok: h.payments !== 'off' && h.payments !== 'sandbox', state: h.payments, to: '/super-admin/payment-gateway' },
+    { label: 'Sign-up codes and messages', ok: h.messaging.sms || h.messaging.whatsapp, state: h.messagingDriver === 'console' ? 'Not delivered' : 'Live', to: '/super-admin/messaging' },
+    { label: 'Email', ok: h.messaging.email, state: h.messaging.email ? 'Connected' : 'Not connected', to: '/super-admin/messaging' },
+    { label: 'File storage', ok: h.storage !== 'local', state: h.storage === 'local' ? 'Temporary disk' : h.storage, to: '/super-admin/health' },
+  ] : undefined;
   return (
     <div className="grid grid-cols-1 gap-5 animate-fade-in">
-      <PageHeader
-        className="mb-0"
-        breadcrumbs={[{ label: 'Super Admin', to: '/super-admin' }, { label: 'Dashboard' }]}
-        title="Platform overview"
-        description="Administrators, money flows and configuration for the whole platform."
-        actions={<><SampleDataBadge /><ButtonLink to="/super-admin/admins" size="sm" leftIcon={<UserPlus className="size-4" />}>Create admin</ButtonLink></>}
-      />
-
-      <StatGrid
-        loading={loading}
-        stats={[
-          { label: 'Administrators', value: String(s?.admins ?? ''), icon: Shield, tone: 'navy', note: s ? `${s.adminsInactive} deactivated` : '' },
-          { label: 'GMV (30 days)', value: s ? formatINR(s.gmv30Paise, { compact: true }) : '', icon: ReceiptIndianRupee, tone: 'green', delta: s ? `+${s.gmvDeltaPct}%` : undefined, note: 'vs prior period' },
-          { label: 'Commissions (30 days)', value: s ? formatINR(s.commissions30Paise, { compact: true }) : '', icon: GitBranch, tone: 'violet', note: s ? (s.activeRuleSets ? `${s.activeRuleSets} active rule sets` : 'No commission rules configured yet') : '' },
-          { label: 'Uptime (30 days)', value: s ? `${s.uptimePct}%` : '', icon: Activity, tone: 'blue', note: 'API availability' },
-        ]}
-      />
-
+      <PageHeader className="mb-0" breadcrumbs={[{ label: 'Super Admin', to: '/super-admin' }, { label: 'Dashboard' }]} title="Platform overview" description="Administrators, money flows and configuration for the whole platform." actions={<ButtonLink to="/super-admin/admins" size="sm" leftIcon={<UserPlus className="size-4" />}>Create admin</ButtonLink>} />
+      <StatGrid loading={orders.isLoading || money.isLoading} stats={[
+        { label: 'Administrators', value: String(admins.data?.meta.total ?? '—'), icon: Shield, tone: 'navy', note: '' },
+        { label: 'Members', value: String(stats.data?.members ?? '—'), icon: Users, tone: 'blue', note: stats.data ? `+${stats.data.membersThisMonth} this month` : '' },
+        { label: 'Sales received', value: o ? formatINR(o.valuePaise, { compact: true }) : '—', icon: ReceiptIndianRupee, tone: 'green', note: o ? `${o.total} orders` : '' },
+        { label: 'Commissions paid', value: m ? formatINR(m.commissionsPaidPaise, { compact: true }) : '—', icon: GitBranch, tone: 'violet', note: m ? `${formatINR(m.commissionsPendingPaise, { compact: true })} waiting` : '' },
+      ]} />
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.65fr_1fr]">
-        <MoneyTrendCard title="GMV vs platform fees" data={data?.chart} loading={loading} names={{ a: 'GMV', b: 'Platform fees' }} />
-        <Card className="p-5">
-          <CardHeader title="Launch readiness" description="Configuration that must be completed" />
-          <ul className="grid gap-1">
-            {loading || !data
-              ? Array.from({ length: 5 }, (_, i) => <li key={i}><Skeleton className="h-12 w-full" /></li>)
-              : data.config.map((c) => (
-                  <li key={c.label}>
-                    <Link to={c.to} className="flex items-start gap-3 rounded-[10px] p-2.5 transition hover:bg-canvas">
-                      {c.ok ? <CheckCircle2 className="mt-0.5 size-[18px] flex-none text-success" /> : <AlertTriangle className="mt-0.5 size-[18px] flex-none text-warn" />}
-                      <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-center justify-between gap-2"><b className="text-[14px]">{c.label}</b><span className={cn('text-[12.5px] font-semibold', c.ok ? 'text-success' : 'text-warn')}>{c.state}</span></span>
-                        <span className="text-[12.5px] text-muted">{c.hint}</span>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-          </ul>
-        </Card>
+        <MoneyTrendCard title="Sales by month" data={o?.months.map((x) => ({ month: x.month, a: x.valuePaise, b: 0 }))} loading={orders.isLoading} names={{ a: 'Received less refunds', b: '' }} />
+        <Card className="p-5"><CardHeader title="Launch readiness" description="What still needs to be set up" />{health.error ? <ErrorState onRetry={() => health.refetch()} /> : !ready ? <Skeleton className="h-60" /> : <ul className="grid gap-1">{ready.map((c) => <li key={c.label}><Link to={c.to} className="flex items-center gap-3 rounded-[10px] p-2.5 hover:bg-canvas">{c.ok ? <CheckCircle2 className="size-[18px] flex-none text-success" /> : <AlertTriangle className="size-[18px] flex-none text-warn" />}<b className="flex-1 text-[14px]">{c.label}</b><span className={cn('text-[12.5px] font-semibold', c.ok ? 'text-success' : 'text-warn')}>{c.state}</span></Link></li>)}</ul>}</Card>
       </div>
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[2fr_1fr]">
-        <Card className="p-5">
-          <CardHeader title="Administrators" description="Activate, deactivate and manage admin permissions" actions={<ButtonLink to="/super-admin/roles" variant="outline" size="sm">Roles & permissions</ButtonLink>} />
-          <DataTable rows={data?.admins ?? []} columns={ADMIN_COLUMNS} rowKey={(r) => r.id} loading={loading} searchText={(r) => `${r.name} ${r.email} ${r.scope}`} searchPlaceholder="Search admins…" pageSize={5} />
-        </Card>
-        <Card className="p-5">
-          <CardHeader title="Audit log" description="Today" actions={<Link to="/super-admin/audit" className="text-[13px] font-semibold text-brand-600 hover:underline">View all</Link>} />
-          <ol className="relative grid gap-4 border-l border-line pl-4">
-            {(data?.audit ?? []).map((a) => (
-              <li key={a.action} className="relative">
-                <span className="absolute top-1.5 -left-[21px] size-2.5 rounded-full border-2 border-white bg-brand-500" />
-                <p className="text-[13.5px] text-ink-2"><b className="text-ink">{a.actor}</b> {a.action.charAt(0).toLowerCase() + a.action.slice(1)}</p>
-                <span className="text-[12px] text-muted">{a.time}</span>
-              </li>
-            ))}
-          </ol>
-        </Card>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <Card className="p-5"><CardHeader title="Administrators" actions={<ButtonLink to="/super-admin/admins" variant="outline" size="sm">Manage</ButtonLink>} />{admins.error ? <ErrorState onRetry={() => admins.refetch()} /> : <ul className="grid gap-3">{admins.data?.data.map((a) => <li key={a.id} className="flex items-center gap-3"><Avatar name={a.name} size={32} /><span className="min-w-0 flex-1"><b className="block truncate text-[14px]">{a.name}</b><span className="block truncate text-[12.5px] text-muted">{a.email}</span></span><StatusBadge status={a.status} /></li>)}{admins.data?.data.length === 0 && <li className="text-[14px] text-muted">No administrators yet.</li>}</ul>}</Card>
+        <Card className="p-5"><CardHeader title="Latest activity" actions={<Link to="/super-admin/audit" className="text-[13px] font-semibold text-brand-600 hover:underline">Audit log</Link>} />{audit.error ? <ErrorState onRetry={() => audit.refetch()} /> : <ol className="grid gap-3">{audit.data?.data.map((a) => <li key={a.id} className="text-[13.5px]"><b>{a.actor?.name ?? 'System'}</b> <span className="break-words">{a.summary}</span><span className="block text-[12px] text-muted">{fmtDateTime(a.createdAt)}</span></li>)}</ol>}</Card>
       </div>
     </div>
   );

@@ -59,7 +59,7 @@ function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-line-2 bg-white/85 backdrop-blur-md backdrop-saturate-150">
-      <div className="container-page flex h-17 items-center gap-7">
+      <div className="container-page flex h-17 items-center gap-2 sm:gap-7">
         <Logo />
         <nav aria-label="Main" className="hidden flex-1 gap-1 xl:flex">
           {NAV.map((n) => (
@@ -118,6 +118,7 @@ const FOOTER = [
 ] as const;
 
 function Footer() {
+  const { data: site } = usePublicStatus();
   return (
     <footer className="mt-22 bg-navy-950 pt-16 pb-7 text-[#aab6d3]">
       <div className="container-page">
@@ -126,15 +127,7 @@ function Footer() {
             <Logo light />
             <p className="mt-4 max-w-xs text-[14px]">India&apos;s marketplace for products, services and projects, powered by trusted references.</p>
             <div className="mt-5 flex gap-2">
-              {[[Facebook, 'Facebook'], [Instagram, 'Instagram'], [Linkedin, 'LinkedIn'], [Youtube, 'YouTube']].map(([Icon, label]) => {
-                const I = Icon as typeof Facebook;
-                return (
-                  // Social URLs come from Settings in Phase 1.
-                  <a key={label as string} href="#" aria-label={label as string} className="grid size-9 place-items-center rounded-[10px] bg-white/6 transition hover:bg-white/14 hover:text-white">
-                    <I className="size-4" />
-                  </a>
-                );
-              })}
+              {([[Facebook, 'facebook'], [Instagram, 'instagram'], [Linkedin, 'linkedin'], [Youtube, 'youtube']] as const).map(([I, key]) => site?.social[key] && <a key={key} href={site.social[key]} target="_blank" rel="noopener noreferrer" aria-label={key} className="grid size-9 place-items-center rounded-[10px] bg-white/6 transition hover:bg-white/14 hover:text-white"><I className="size-4" /></a>)}
             </div>
           </div>
           {FOOTER.map((col) => (

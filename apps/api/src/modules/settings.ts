@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { SETTINGS_GROUPS, type SettingsGroup } from '@jr/shared';
-import { authenticate, requirePermission, requireRole } from '../middleware/auth';
+import { authenticate, requirePermission, requireRecentAuth, requireRole } from '../middleware/auth';
 import { forbidden } from '../core/errors';
 import { parse } from '../core/http';
 import { getSettings, saveSettings, SETTINGS_SCHEMAS } from '../services/settings';
@@ -21,6 +21,8 @@ router.put('/:group', async (req, res) => {
   const group: SettingsGroup = parse(groupParam, req.params.group);
   const needed = group === 'maintenance' ? 'maintenance.manage' : group === 'wallet' || group === 'earnings' ? 'money.manage' : 'settings.edit';
   if (!req.auth!.permissions.has(needed)) throw forbidden('You don’t have permission to change these settings', 'FORBIDDEN', { missing: [needed] });
+
+  if (needed === 'money.manage') await new Promise<void>((ok, no) => requireRecentAuth(req, res, (e?: unknown) => (e ? no(e) : ok())));
 
   const value = parse(SETTINGS_SCHEMAS[group], req.body);
   const before = (await getSettings(group)) as Record<string, unknown>;

@@ -77,7 +77,11 @@ export function refreshSession(): Promise<AuthResponse | null> {
   return refreshing;
 }
 
-interface Opts { query?: Query; body?: unknown; form?: FormData; csrf?: boolean; signal?: AbortSignal }
+/** Asks the person to confirm their password; resolves true once confirmed. Set by the app shell. */
+let reauth: (() => Promise<boolean>) | null = null;
+export const setReauthHandler = (f: (() => Promise<boolean>) | null) => { reauth = f; };
+
+interface Opts { query?: Query; body?: unknown; form?: FormData; csrf?: boolean; signal?: AbortSignal; noReauth?: boolean }
 
 async function send(method: string, path: string, opts: Opts = {}, retried = false): Promise<Response> {
   const headers: Record<string, string> = {};
@@ -100,6 +104,10 @@ async function send(method: string, path: string, opts: Opts = {}, retried = fal
       const r = await refreshSession();
       if (r) return send(method, path, opts, true);
     }
+  }
+  if (res.status === 403 && reauth && !opts.noReauth) {
+    const err = await toError(res.clone());
+    if (err.code === 'REAUTH_REQUIRED' && (await reauth())) return send(method, path, { ...opts, noReauth: true }, retried);
   }
   return res;
 }

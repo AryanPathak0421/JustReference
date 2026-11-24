@@ -60,7 +60,7 @@ export function BirthdaysList({ items, loading }: { items?: BirthdayItem[]; load
   if (loading) return <Skeleton className="h-16" />;
   if (!items?.length) return <p className="text-[13.5px] text-muted">No birthdays in your network this week.</p>;
   return (
-    <ul className="grid gap-2">
+    <ul className="grid grid-cols-1 gap-2">
       {items.map((b) => (
         <li key={b.userId} className="flex items-center gap-3 rounded-xl border border-line p-3">
           <span className="grid size-9 flex-none place-items-center rounded-lg bg-warn-50 text-warn"><Cake className="size-4" /></span>
@@ -82,7 +82,7 @@ function NodeCard({ n, href, highlight }: { n: ReferralNode; href?: string; high
     <>
       <Avatar name={n.name} size={36} />
       <div className="min-w-0 flex-1 text-left">
-        <span className="flex min-w-0 items-center gap-2"><b className="truncate text-[14.5px]">{n.name}</b>{n.status !== 'active' && <StatusBadge status={n.status} />}</span>
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2"><b className="min-w-0 truncate text-[14.5px]">{n.name}</b>{n.status !== 'active' && <StatusBadge status={n.status} />}</span>
         <span className="block text-[12.5px] text-muted"><span className="font-mono">{n.memberId}</span> · joined {new Date(n.joinedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
       </div>
       <div className="flex flex-none flex-col items-end gap-1 text-[12px] text-muted">
@@ -104,7 +104,7 @@ export function ReferralTreeView({ tree, loading, nodeHref, rootLabel = 'You' }:
   if (loading || !tree) return <div className="grid gap-3"><Skeleton className="h-16" /><Skeleton className="h-40" /></div>;
   const isRoot = tree.node.level === 0;
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 gap-4">
       {!isRoot && (
         <nav aria-label="Tree path" className="flex flex-wrap items-center gap-1.5 text-[13px] text-muted">
           {tree.path.map((p, i) => (
@@ -124,8 +124,8 @@ export function ReferralTreeView({ tree, loading, nodeHref, rootLabel = 'You' }:
         {tree.children.length === 0 ? (
           <Card><EmptyState icon={Users} title="No referrals yet" description={isRoot ? 'Share your referral link to grow your network.' : undefined} className="py-8" /></Card>
         ) : (
-          <ul className="grid gap-2">
-            {tree.children.map((c) => <li key={c.userId}><NodeCard n={c} href={nodeHref(c.userId)} /></li>)}
+          <ul className="grid grid-cols-1 gap-2">
+            {tree.children.map((c) => <li key={c.userId} className="min-w-0"><NodeCard n={c} href={nodeHref(c.userId)} /></li>)}
           </ul>
         )}
         {tree.childrenTotal > tree.children.length && <p className="mt-2 text-[12.5px] text-muted">Showing the first {tree.children.length} of {tree.childrenTotal}. Use the list view to search all.</p>}

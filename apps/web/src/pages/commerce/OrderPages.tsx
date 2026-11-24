@@ -13,6 +13,7 @@ import { fmtDateTime, ReasonDialog, TestBadge, Totals } from '@/features/commerc
 import {
   cancelOrder, completeOrder, decideCancellation, dismissRefund, getOrder, gstSummary, invoiceBlob, listCustomers, listInvoices, listOrders, listPayments, newKey, orderStats, payOrder, refundOrder, setOrderStatus,
 } from '@/features/commerce/api';
+import { ReviewBox } from '@/features/comms/reviews';
 import { ApiError, errorMessage } from '@/lib/api';
 import { PANELS, type PanelKey } from '@/panels/navigation';
 
@@ -200,6 +201,7 @@ export function OrderDetailPage({ panelKey }: { panelKey: PanelKey }) {
           {o.tracking && <Card className="p-5"><CardHeader title="Tracking" /><p className="flex items-center gap-2 text-[14px]"><Truck className="size-4 text-subtle" />{o.tracking.carrier} · <b className="font-mono">{o.tracking.number}</b></p>{o.tracking.url && <a href={o.tracking.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-[13px] font-semibold text-brand-600 hover:underline">Track shipment</a>}</Card>}
           {panelKey !== 'member' && <Card className="p-5"><CardHeader title="Buyer" /><p className="font-semibold">{o.buyer.name}</p><p className="font-mono text-[13px] text-muted">{o.buyer.memberId}</p></Card>}
           {o.address && <Card className="p-5"><CardHeader title="Address" /><address className="text-[14px] leading-relaxed not-italic">{o.address.name}<br />{o.address.line1}{o.address.line2 && <>, {o.address.line2}</>}<br />{o.address.city}, {o.address.state} {o.address.pincode}<br />{o.address.mobile}</address></Card>}
+          {panelKey === 'member' && o.status === 'completed' && <ReviewBox orderId={o.id} />}
           <Card className="p-5">
             <CardHeader title="Invoices" />
             {o.invoices.length === 0 ? <p className="text-[14px] text-muted">Issued once the order is fully paid.</p> : <ul className="grid gap-2">{o.invoices.map((i) => <li key={i.id} className="flex items-center justify-between gap-3 text-[14px]"><span><b className="font-mono text-[13px]">{i.invoiceNo}</b><br /><span className="text-[12.5px] text-muted">{i.type === 'credit_note' ? 'Credit note' : 'Invoice'} · {formatINR(i.totalPaise)}</span></span><PdfButton panelKey={panelKey} id={i.id} /></li>)}</ul>}

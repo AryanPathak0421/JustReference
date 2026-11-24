@@ -13,6 +13,7 @@ import { assertObjectId, escapeRegex, paged, paginationSchema, parse } from '../
 import { activeGateway } from '../services/gateway';
 import { getSettings } from '../services/settings';
 import { advanceShare, createOrder, priceLine } from '../services/orders';
+import { notify } from '../services/notify';
 import { audit } from '../services/audit';
 
 const me = (req: Request) => new Types.ObjectId(req.auth!.user.id);
@@ -129,6 +130,9 @@ projectRequestsRouter.post('/:id/bids/:bidId/accept', async (req, res) => {
     await ProjectRequestModel.updateOne({ _id: r._id }, { orderId: o._id }, { session });
     return o;
   });
+  const bidDoc = await BidModel.findById(bidId, { vendorId: 1 }).lean();
+  const winner = bidDoc && (await VendorModel.findById(bidDoc.vendorId, { userId: 1 }).lean());
+  await notify(winner?.userId, { event: 'bid', title: 'Your bid was accepted', body: r.title, link: `/vendor/bids/${r.id}`, key: `bid:${bidId}:accepted` });
   await audit(req, { action: 'bid.accept', entity: 'project_request', entityId: r.id, summary: `Accepted a bid; created ${order.orderNo}` });
   res.status(201).json({ orderId: String(order._id), orderNo: order.orderNo });
 });
@@ -179,6 +183,8 @@ vendorBiddingRouter.put('/project-requests/:id/bid', canBid, async (req, res) =>
     if (existing) await existing.set(fields).save({ session });
     else await BidModel.create([{ requestId: id, vendorId: v._id, ...fields }], { session });
   });
+  const request = await ProjectRequestModel.findById(id, { ownerUserId: 1, title: 1 }).lean();
+  await notify(request?.ownerUserId, { event: 'bid', title: 'New bid on your request', body: request?.title, link: `/member/projects/requests/${id}`, key: `bid:${id}:${v._id}` });
   await audit(req, { action: 'bid.submit', entity: 'project_request', entityId: id, summary: 'Submitted or updated a bid' });
   res.json((await views([(await ProjectRequestModel.findById(id).lean()) as never], { bids: 'none', vendorId: v._id, owner: false }))[0]);
 });
@@ -211,6 +217,8 @@ adminBiddingRouter.post('/project-requests/:id/decision', requirePermission('bid
   const id = assertObjectId(req.params.id, 'Project request');
   const done = await ProjectRequestModel.updateOne({ _id: id, status: 'pending_approval' }, input.decision === 'approve' ? { status: 'open' } : { status: 'rejected', rejectionReason: input.reason });
   if (!done.modifiedCount) throw conflict('This request isn’t waiting for approval');
+  const pr = await ProjectRequestModel.findById(id, { ownerUserId: 1, title: 1 }).lean();
+  await notify(pr?.ownerUserId, { event: 'bid', title: input.decision === 'approve' ? 'Your project request is live' : 'Your project request wasn’t approved', body: pr?.title, link: `/member/projects/requests/${id}`, key: `request:${id}:${input.decision}` });
   await audit(req, { action: 'project_request.decision', entity: 'project_request', entityId: id, summary: `Project request: ${input.decision}` });
   res.json(await ownView(id));
 });

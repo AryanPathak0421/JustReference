@@ -5,7 +5,7 @@ import {
   applyCouponSchema, pinSchema, cancellationDecisionSchema, cancelSchema, cartItemSchema, cartUpdateSchema, checkoutSchema, LISTING_TYPES, ORDER_STATUSES, orderTransitionSchema, refundSchema, sandboxOutcomeSchema,
   type CustomerRow,
 } from '@jr/shared';
-import { authenticate, requirePermission, requireRole } from '../middleware/auth';
+import { authenticate, requirePermission, requireRecentAuth, requireRole } from '../middleware/auth';
 import { CartModel, InvoiceModel, OrderModel, PaymentModel, type Order } from '../models/commerce';
 import { VendorModel } from '../models/vendor';
 import { ListingModel } from '../models/catalog';
@@ -352,7 +352,7 @@ adminCommerceRouter.post('/orders/:id/cancellation', manage, async (req, res) =>
   await audit(req, { action: 'order.cancellation', entity: 'order', entityId: o.id, summary: `Cancellation of ${o.orderNo}: ${input.decision}` });
   res.json(await detail(o.id, adminViewer(req)));
 });
-adminCommerceRouter.post('/orders/:id/refunds', refund, async (req, res) => {
+adminCommerceRouter.post('/orders/:id/refunds', requireRecentAuth, refund, async (req, res) => {
   const input = parse(refundSchema, req.body);
   const o = await anyOrder(req);
   await refundOrder(o._id, input, req.auth!.user.id, actor(req, 'JustReference admin'));

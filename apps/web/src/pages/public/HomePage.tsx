@@ -2,12 +2,14 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
   ArrowRight, BarChart3, Briefcase, Building2, CheckCircle2, GitBranch, Gavel, HardHat, Headphones, Link2, Lock, Package, ReceiptIndianRupee,
-  Search, Share2, ShieldCheck, Star, TrendingUp, UserPlus, Wallet, WalletCards,
+  Search, Share2, ShieldCheck, TrendingUp, UserPlus, Wallet, WalletCards,
 } from 'lucide-react';
 import { Avatar, ButtonLink, Card, ErrorState, IconTile, SampleDataBadge, SectionHeading, Segmented } from '@/design-system';
 import { useFeatured } from '@/features/catalog/api';
-import { ListingCard, ListingCardSkeleton, ListingImage, VendorCard } from '@/features/catalog/components';
-import { getLatestPosts, getTestimonials } from '@/features/content/api';
+import { ListingCard, ListingCardSkeleton, VendorCard } from '@/features/catalog/components';
+import { useQuery } from '@tanstack/react-query';
+import { AdCard } from '@/pages/comms/AdCard';
+import { homeAds, listPosts, listTestimonials } from '@/features/comms/api';
 import { Skeleton } from '@/design-system';
 
 type SearchScope = 'products' | 'services' | 'projects' | 'vendors';
@@ -156,8 +158,9 @@ const BENEFITS = [
 ] as const;
 
 export function HomePage() {
-  const testimonials = getTestimonials();
-  const posts = getLatestPosts();
+  const testimonials = useQuery({ queryKey: ['testimonials'], queryFn: listTestimonials }).data?.data ?? [];
+  const posts = useQuery({ queryKey: ['posts', 'home'], queryFn: () => listPosts(1, 3) }).data?.data ?? [];
+  const ads = useQuery({ queryKey: ['home-ads'], queryFn: homeAds }).data?.data ?? [];
 
   return (
     <>
@@ -247,13 +250,14 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="border-y border-line-2 bg-canvas py-16 sm:py-22">
+      {ads.length > 0 && <section className="pb-12"><div className="container-page grid gap-4 sm:grid-cols-2">{ads.slice(0, 4).map((a) => <AdCard key={a.id} ad={a} />)}</div></section>}
+
+      {testimonials.length > 0 && <section className="border-y border-line-2 bg-canvas py-16 sm:py-22">
         <div className="container-page">
-          <SectionHeading kicker="Testimonials" title="What our community says" action={<SampleDataBadge label="Sample content" />} />
+          <SectionHeading kicker="Testimonials" title="What our community says" />
           <div className="grid gap-5 md:grid-cols-3">
             {testimonials.map((t) => (
-              <Card key={t.name} className="flex flex-col gap-4.5 p-7">
-                <div className="flex gap-0.5" aria-label="5 out of 5 stars">{Array.from({ length: 5 }, (_, i) => <Star key={i} className="size-4 fill-[#f5b301] text-[#f5b301]" />)}</div>
+              <Card key={t.id} className="flex flex-col gap-4.5 p-7">
                 <blockquote className="text-[15.5px] leading-relaxed text-ink-2">“{t.quote}”</blockquote>
                 <figcaption className="mt-auto flex items-center gap-3">
                   <Avatar name={t.name} size={40} />
@@ -263,23 +267,22 @@ export function HomePage() {
             ))}
           </div>
         </div>
-      </section>
+      </section>}
 
-      <section className="py-16 sm:py-22">
+      {posts.length > 0 && <section className="py-16 sm:py-22">
         <div className="container-page">
           <SectionHeading
             kicker="From the blog"
             title="Guides & updates"
-            action={<div className="flex items-center gap-3"><SampleDataBadge label="Sample content" /><Link to="/blog" className="inline-flex items-center gap-1.5 text-[14.5px] font-semibold text-brand-600">Read the blog <ArrowRight className="size-4" /></Link></div>}
+            action={<div className="flex items-center gap-3"><Link to="/blog" className="inline-flex items-center gap-1.5 text-[14.5px] font-semibold text-brand-600">Read the blog <ArrowRight className="size-4" /></Link></div>}
           />
           <div className="grid gap-5 md:grid-cols-3">
             {posts.map((p) => (
               <Link key={p.slug} to={`/blog/${p.slug}`} className="group">
                 <Card hover className="h-full overflow-hidden">
-                  <ListingImage hint={p.art === 'finance' ? 'finance' : p.art === 'megaphone' ? 'marketing' : 'office stationery'} alt="" className="h-38" />
                   <div className="p-4.5">
-                    <time dateTime={p.date} className="text-[12.5px] font-medium text-muted">
-                      {new Date(p.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · {p.readMins} min read
+                    <time dateTime={p.publishedAt!} className="text-[12.5px] font-medium text-muted">
+                      {new Date(p.publishedAt!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </time>
                     <h3 className="mt-1.5 text-[16px] leading-snug font-bold group-hover:text-brand-600">{p.title}</h3>
                     <p className="mt-1.5 text-[14px] text-muted">{p.excerpt}</p>
@@ -289,7 +292,7 @@ export function HomePage() {
             ))}
           </div>
         </div>
-      </section>
+      </section>}
 
       <section>
         <div className="container-page">

@@ -43,6 +43,7 @@ const statusTone: Record<string, Tone> = {
   completed: 'green', paid: 'green', published: 'green', active: 'green', resolved: 'green', accepted: 'green', captured: 'green', approved: 'green',
   pending: 'amber', processing: 'amber', pending_approval: 'amber', in_progress: 'amber', requested: 'amber', submitted: 'amber',
   fresh: 'blue', issued: 'violet', used: 'neutral', reversed: 'red', upcoming: 'blue', expired: 'neutral',
+  hidden: 'neutral', 
   processed: 'green', running: 'blue', awarded: 'violet', unpaid: 'amber', partly_paid: 'amber', partly_refunded: 'violet', created: 'amber', withdrawn: 'neutral',
   confirmed: 'blue', shipped: 'blue', open: 'blue', refunded: 'violet', draft: 'neutral', closed: 'neutral', archived: 'neutral',
   cancelled: 'red', rejected: 'red', failed: 'red', blocked: 'red', blacklisted: 'red', deactivated: 'red',

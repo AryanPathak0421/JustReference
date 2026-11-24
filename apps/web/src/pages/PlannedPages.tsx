@@ -59,45 +59,6 @@ function PanelNotFound({ base }: { base: string }) {
   );
 }
 
-const PUBLIC_PLANNED: Record<string, { title: string; phase: number; text: string }> = {
-  '/about': { title: 'About us', phase: 6, text: 'Company story, mission and team. Content is managed from the CMS.' },
-  '/referral': { title: 'Referral program', phase: 3, text: 'How referral links, direct/indirect referrals and rewards work.' },
-  '/how-it-works': { title: 'How it works', phase: 6, text: 'Step-by-step guides for members, buyers and vendors.' },
-  '/contact': { title: 'Contact us', phase: 6, text: 'Contact form (creates a support ticket), phone, email and office address.' },
-  '/blog': { title: 'Blog', phase: 6, text: 'Guides, product updates and announcements.' },
-  '/privacy': { title: 'Privacy policy', phase: 6, text: 'Your legal team’s privacy policy, published through the CMS.' },
-  '/terms': { title: 'Terms & conditions', phase: 6, text: 'Your legal team’s terms of use, published through the CMS.' },
-  '/refund-policy': { title: 'Refund policy', phase: 6, text: 'Refund and cancellation rules, once the business has decided them.' },
-};
-
-export function PlannedPublicPage() {
-  const { pathname } = useLocation();
-  const key = Object.keys(PUBLIC_PLANNED).find((k) => pathname === k || pathname.startsWith(`${k}/`));
-  const detailSection = pathname.match(/^\/(products|services|projects)\/[^/]+$/)?.[1];
-
-  const info = key
-    ? PUBLIC_PLANNED[key]!
-    : detailSection
-      ? { title: 'Listing details', phase: 2, text: 'Full listing page with gallery, vendor profile, reviews, add-to-cart and bidding.' }
-      : undefined;
-
-  if (!info) return <NotFoundPage />;
-
-  return (
-    <div className="container-page py-10">
-      <PageHeader breadcrumbs={[{ label: 'Home', to: '/' }, ...(detailSection ? [{ label: detailSection[0]!.toUpperCase() + detailSection.slice(1), to: `/${detailSection}` }] : []), { label: info.title }]} title={info.title} />
-      <Card>
-        <EmptyState
-          icon={Hammer}
-          title={`Coming in Phase ${info.phase}`}
-          description={info.text}
-          action={<ButtonLink to={detailSection ? `/${detailSection}` : '/'} variant="outline" leftIcon={<ArrowLeft className="size-4" />}>{detailSection ? 'Back to listings' : 'Back to home'}</ButtonLink>}
-        />
-      </Card>
-    </div>
-  );
-}
-
 export function NotFoundPage() {
   return (
     <div className="container-page grid min-h-[60vh] place-items-center py-16 text-center">

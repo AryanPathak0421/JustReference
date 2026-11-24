@@ -1,6 +1,6 @@
 import {
-  authSettingsSchema, commerceSettingsSchema, earningsSettingsSchema, engagementSettingsSchema, generalSettingsSchema, maintenanceSettingsSchema, walletSettingsSchema,
-  type AuthSettings, type CommerceSettings, type EarningsSettings, type WalletSettings, type EngagementSettings, type GeneralSettings, type MaintenanceSettings, type SettingsGroup,
+  authSettingsSchema, commerceSettingsSchema, earningsSettingsSchema, engagementSettingsSchema, generalSettingsSchema, maintenanceSettingsSchema, NOTIFICATION_EVENTS, notificationSettingsSchema, walletSettingsSchema,
+  type AuthSettings, type CommerceSettings, type EarningsSettings, type NotificationSettings, type WalletSettings, type EngagementSettings, type GeneralSettings, type MaintenanceSettings, type SettingsGroup,
 } from '@jr/shared';
 import { SettingModel } from '../models/system';
 
@@ -12,9 +12,10 @@ interface SettingsMap {
   commerce: CommerceSettings;
   wallet: WalletSettings;
   earnings: EarningsSettings;
+  notifications: NotificationSettings;
 }
 
-export const SETTINGS_SCHEMAS = { general: generalSettingsSchema, auth: authSettingsSchema, maintenance: maintenanceSettingsSchema, engagement: engagementSettingsSchema, commerce: commerceSettingsSchema, wallet: walletSettingsSchema, earnings: earningsSettingsSchema };
+export const SETTINGS_SCHEMAS = { general: generalSettingsSchema, auth: authSettingsSchema, maintenance: maintenanceSettingsSchema, engagement: engagementSettingsSchema, commerce: commerceSettingsSchema, wallet: walletSettingsSchema, earnings: earningsSettingsSchema, notifications: notificationSettingsSchema };
 
 export const SETTINGS_DEFAULTS: SettingsMap = {
   general: { siteName: 'JustReference', supportEmail: '', supportPhone: '', address: '', social: {} },
@@ -25,6 +26,8 @@ export const SETTINGS_DEFAULTS: SettingsMap = {
   // Nothing that moves money is on until a Super Admin decides the values.
   wallet: { topUpEnabled: false, topUpMinPaise: 0, topUpMaxPaise: 0, transferEnabled: false, transferMaxPaise: 0, withdrawEnabled: false, withdrawMinPaise: 0, withdrawFeePaise: 0, withdrawRequiresKyc: true, memberEpinEnabled: false },
   earnings: { platformFeePct: null, settlementHoldDays: 0, commissionHoldDays: 0, tdsEnabled: false, tdsRatePct: 0, tdsNoPanRatePct: 0, tdsThresholdPaise: 0, tdsOnRewards: false },
+  // In-app notifications always work; outside channels are off until chosen.
+  notifications: { events: Object.fromEntries(NOTIFICATION_EVENTS.map((e) => [e, { email: false, sms: false, whatsapp: false }])) as NotificationSettings['events'], template: 'Hi {name}, {title}. {body} {link} - {site}', emailSubject: '{title} | {site}' },
 };
 
 // Settings are read on hot paths (maintenance check on every request), so cache briefly.

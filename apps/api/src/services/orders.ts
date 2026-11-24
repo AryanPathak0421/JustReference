@@ -13,6 +13,7 @@ import { getSettings } from './settings';
 import { publicUrl } from './storage';
 import { VISIBLE } from './catalog';
 import { activeGateway, type GatewayEvent } from './gateway';
+import { notifyOrder, notifyPayment } from './notify';
 import { issueCreditNote, issueInvoice } from './invoices';
 import { CouponModel } from '../models/finance';
 import { activateSubscription, couponProblem, createCommissions, ensureWallets, post, redeemCoupon, releaseCoupon, reverseForRefund } from './finance';
@@ -226,6 +227,15 @@ export async function payOrder(order: OrderDoc) {
 
 /** Apply a *verified* gateway event. Safe to call repeatedly with the same event. */
 export async function applyGatewayEvent(provider: string, ev: GatewayEvent): Promise<'applied' | 'duplicate' | 'ignored'> {
+  const result = await applyEvent(provider, ev);
+  if (result === 'applied') {
+    const p = await PaymentModel.findOne({ provider, providerOrderId: ev.providerOrderId }, { _id: 1 }).lean();
+    if (p) await notifyPayment(p._id);
+  }
+  return result;
+}
+
+async function applyEvent(provider: string, ev: GatewayEvent): Promise<'applied' | 'duplicate' | 'ignored'> {
   return mongoose.connection.transaction(async (session) => {
     const p = await PaymentModel.findOne({ provider, providerOrderId: ev.providerOrderId }).session(session);
     if (!p) return 'ignored';
@@ -299,7 +309,7 @@ export async function payFromWallet(paymentId: Id) {
   const isTest = !!activeGateway()?.testMode;
   if ((src.provider === 'sandbox') !== isTest) throw conflict('This payment was started in another mode');
   await ensureWallets([src.buyerUserId!], isTest);
-  return mongoose.connection.transaction(async (session) => {
+  const paid = await mongoose.connection.transaction(async (session) => {
     for (const a of src.allocations) {
       const o = await OrderModel.findById(a.orderId).session(session);
       if (!o || dueNow(o) !== a.amountPaise) throw conflict('The amount due has changed. Open the order to pay.');
@@ -311,6 +321,8 @@ export async function payFromWallet(paymentId: Id) {
     await applyCapture(p!, session);
     return p!;
   });
+  await notifyPayment(paid._id);
+  return paid;
 }
 
 /** A payment that isn't for an order: wallet top-up or subscription. */
@@ -346,13 +358,20 @@ async function releaseStock(o: OrderDoc, session: ClientSession) {
 
 /** Load an order inside a transaction and change it. Concurrent changes conflict and retry. */
 async function change(orderId: Id, fn: (o: OrderDoc, session: ClientSession) => Promise<void>): Promise<OrderDoc> {
-  return mongoose.connection.transaction(async (session) => {
-    const o = await OrderModel.findById(orderId).session(session);
-    if (!o) throw notFound('Order');
-    await fn(o, session);
-    await o.save({ session });
-    return o;
+  let before = { status: '', cancel: undefined as string | null | undefined };
+  const o = await mongoose.connection.transaction(async (session) => {
+    const d = await OrderModel.findById(orderId).session(session);
+    if (!d) throw notFound('Order');
+    before = { status: d.status, cancel: d.cancellation?.status };
+    await fn(d, session);
+    await d.save({ session });
+    return d;
   });
+  const cancel = o.cancellation?.status;
+  if (o.status !== before.status) await notifyOrder(o._id, 'status');
+  else if (cancel !== before.cancel && cancel === 'open') await notifyOrder(o._id, 'cancel_request');
+  else if (cancel !== before.cancel && cancel === 'declined') await notifyOrder(o._id, 'cancel_declined');
+  return o;
 }
 
 async function cancelInside(o: OrderDoc, actor: Actor, note: string, session: ClientSession) {
@@ -514,6 +533,7 @@ export async function refundOrder(orderId: Id, input: { amount: number; reason: 
       await PaymentModel.updateOne({ _id: r.paymentId, amountPaise: { $lte: total[0]?.n ?? 0 } }, { status: 'refunded' }, { session });
     });
   }
+  if (failed < refunds.length) await notifyOrder(orderId, 'refund');
   if (failed) throw new AppError(502, 'REFUND_FAILED', 'The payment gateway didn’t accept the refund. Nothing was marked refunded for that part; try again.');
 }
 

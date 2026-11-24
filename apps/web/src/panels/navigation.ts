@@ -117,7 +117,7 @@ const member: PanelConfig = {
         },
         {
           label: 'Account report', icon: BookOpen, to: `${m}/account-report`, phase: 5,
-          children: [leaf('Credit', `${m}/account-report/credit`, 5), leaf('Debit', `${m}/account-report/debit`, 5), leaf('Balance', `${m}/account-report/balance`, 5), leaf('TDS report', `${m}/account-report/tds`, 5)],
+          children: [leaf('Credit', `${m}/account-report/credit`, 5), leaf('Debit', `${m}/account-report/debit`, 5), leaf('Balance', `${m}/account-report/balance`, 5), leaf('TDS report', `${m}/account-report/tds`, 5), leaf('All reports', `${m}/reports`, 6)],
         },
       ],
     },
@@ -190,8 +190,12 @@ const vendor: PanelConfig = {
       items: [
         { label: 'Business profile', icon: Building2, to: `${v}/profile`, phase: 2 },
         { label: 'Personal profile', icon: UserCog, to: `${v}/personal-profile`, phase: 3 },
+        { label: 'Announcements', icon: Megaphone, to: `${v}/announcements`, phase: 6 },
         { label: 'Messages', icon: MessageSquare, to: `${v}/messages`, phase: 6 },
-        { label: 'Admin support', icon: LifeBuoy, to: `${v}/support`, phase: 6 },
+        {
+          label: 'Admin support', icon: LifeBuoy, to: `${v}/support`, phase: 6,
+          children: [leaf('New support request', `${v}/support/new`, 6), leaf('My tickets', `${v}/support/tickets`, 6), leaf('Ticket history', `${v}/support/history`, 6)],
+        },
         { label: 'Account & security', icon: KeyRound, to: `${v}/account`, phase: 1 },
       ],
     },
@@ -205,7 +209,7 @@ const admin: PanelConfig = {
   label: 'Admin',
   base: a,
   nav: [
-    { label: 'Overview', items: [{ label: 'Dashboard', icon: LayoutDashboard, to: a, phase: 0 }, { label: 'Reports', icon: BarChart3, to: `${a}/reports`, phase: 6 }] },
+    { label: 'Overview', items: [{ label: 'Dashboard', icon: LayoutDashboard, to: a, phase: 0 }, { label: 'Reports', icon: BarChart3, to: `${a}/reports`, phase: 6, perm: 'reports.view' }] },
     {
       label: 'People',
       items: [
@@ -214,7 +218,7 @@ const admin: PanelConfig = {
           children: [
             leaf('All members', `${a}/members/all`, 1, 'members.view'), leaf('New registration', `${a}/members/new`, 1, 'members.create'), leaf('Date-wise list', `${a}/members/date-wise`, 1, 'members.view'),
             leaf('Edit member profile', `${a}/members/edit`, 1, 'members.edit'), leaf('Security codes', `${a}/members/security-codes`, 1, 'members.security'), leaf('Bank details', `${a}/members/bank-details`, 3, 'members.bank'),
-            leaf('Direct referral view', `${a}/members/referrals`, 3, 'members.view'), leaf('Member reports', `${a}/members/reports`, 6), leaf('Member messages', `${a}/members/messages`, 6),
+            leaf('Direct referral view', `${a}/members/referrals`, 3, 'members.view'), leaf('Member reports', `${a}/members/reports`, 6, 'reports.view'), leaf('Member messages', `${a}/members/messages`, 6, 'messages.manage'),
           ],
         },
         {
@@ -272,8 +276,9 @@ const admin: PanelConfig = {
       label: 'Support',
       items: [
         { label: 'Messages', icon: MessageSquare, to: `${a}/messages`, phase: 6 },
-        { label: 'Support tickets', icon: LifeBuoy, to: `${a}/tickets`, phase: 6 },
-        { label: 'Customer feedback', icon: Star, to: `${a}/feedback`, phase: 6 },
+        { label: 'Support tickets', icon: LifeBuoy, to: `${a}/tickets`, phase: 6, perm: 'tickets.manage' },
+        { label: 'Customer feedback', icon: Star, to: `${a}/feedback`, phase: 6, perm: 'feedback.moderate' },
+        { label: 'Website content', icon: BookOpen, to: `${a}/content`, phase: 6, perm: 'content.manage' },
       ],
     },
     {
@@ -295,7 +300,7 @@ const superAdmin: PanelConfig = {
   label: 'Super Admin',
   base: s,
   nav: [
-    { label: 'Overview', items: [{ label: 'Dashboard', icon: LayoutDashboard, to: s, phase: 0 }, { label: 'Reports & analytics', icon: BarChart3, to: `${s}/analytics`, phase: 6 }] },
+    { label: 'Overview', items: [{ label: 'Dashboard', icon: LayoutDashboard, to: s, phase: 0 }, { label: 'Reports & analytics', icon: BarChart3, to: `${s}/analytics`, phase: 6 }, { label: 'Reports', icon: FileText, to: `${s}/reports`, phase: 6 }, { label: 'Messages', icon: Mail, to: `${s}/messages`, phase: 6 }, { label: 'Support tickets', icon: LifeBuoy, to: `${s}/tickets`, phase: 6 }] },
     {
       label: 'Administration',
       items: [
@@ -334,6 +339,7 @@ const superAdmin: PanelConfig = {
     {
       label: 'Configuration',
       items: [
+        { label: 'Website content', icon: BookOpen, to: `${s}/content`, phase: 6 },
         { label: 'Website settings', icon: Settings, to: `${s}/settings`, phase: 1 },
         { label: 'Payment gateway', icon: CreditCard, to: `${s}/payment-gateway`, phase: 4 },
         { label: 'SMS / Email / WhatsApp', icon: Send, to: `${s}/messaging`, phase: 6 },

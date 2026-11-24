@@ -29,8 +29,8 @@ export function SettingsPage({ panelKey }: { panelKey: PanelKey }) {
       />
       {tab === 'general' ? <GeneralForm /> : tab === 'auth' ? <AuthForm /> : <EngagementForm />}
       <Card className="p-5">
-        <CardHeader title="Coming in later phases" />
-        <p className="text-[13.5px] text-muted">Payment gateway (Phase 4), SMS / WhatsApp / email providers (Phase 6) and commission rules (Phase 5) get their own settings screens.</p>
+        <CardHeader title="Other settings" />
+        <p className="text-[13.5px] text-muted">Payments, messaging channels and commission rules have their own screens in the Super Admin panel.</p>
       </Card>
     </div>
   );
@@ -53,7 +53,7 @@ function EngagementForm() {
       <fieldset disabled={!editable} className="grid max-w-xl gap-4">
         <Checkbox label="Send members a birthday greeting" checked={v.birthdayGreetings} onChange={(e) => setV({ ...v, birthdayGreetings: e.target.checked })} />
         <Checkbox label="Remind each member’s direct sponsor about their referral’s birthday" checked={v.birthdayReminders} onChange={(e) => setV({ ...v, birthdayReminders: e.target.checked })} />
-        <Field label="Send by" hint="Until a provider is connected (Phase 6), messages go to the dev outbox.">
+        <Field label="Send by" hint="Delivered once this channel is connected.">
           {({ id, describedBy }) => (
             <Select id={id} aria-describedby={describedBy} value={v.greetingChannel} onChange={(e) => setV({ ...v, greetingChannel: e.target.value as EngagementSettings['greetingChannel'] })}>
               <option value="whatsapp">WhatsApp</option><option value="sms">SMS</option><option value="email">Email</option>
@@ -152,7 +152,7 @@ function AuthForm() {
     <Card className="p-6">
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <fieldset disabled={!editable} className="grid max-w-xl gap-4">
-          <Field label="Send verification codes by" error={errors.otpChannel?.message} hint="Until a provider is connected (Phase 6), codes go to the dev outbox.">
+          <Field label="Send verification codes by" error={errors.otpChannel?.message} hint="Delivered once this channel is connected.">
             {({ id, describedBy }) => (
               <Select id={id} aria-describedby={describedBy} {...register('otpChannel')}>
                 <option value="whatsapp">WhatsApp</option>

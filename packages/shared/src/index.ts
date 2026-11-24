@@ -7,4 +7,5 @@ export * from './catalog';
 export * from './members';
 export * from './commerce';
 export * from './finance';
+export * from './comms';
 export type * from './api-types';

@@ -1,13 +1,12 @@
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Cake, Copy, IdCard, Link2, Megaphone, MessageCircle, Plus, Share2, ShoppingBag, TrendingUp, Users, Wallet } from 'lucide-react';
+import { Copy, IdCard, Link2, Megaphone, MessageCircle, Plus, Share2, ShoppingBag, TrendingUp, Users, Wallet } from 'lucide-react';
 import { formatINR } from '@jr/shared/money';
-import { Button, ButtonLink, Card, CardHeader, DataTable, ErrorState, IconTile, PageHeader, SampleDataBadge, Skeleton, type Column } from '@/design-system';
-import { fetchMemberDashboard } from '@/features/dashboard/api';
+import { Button, ButtonLink, Card, CardHeader, DataTable, ErrorState, IconTile, PageHeader, Skeleton, type Column } from '@/design-system';
+import { listAnnouncements, listNotifications } from '@/features/comms/api';
 import { MoneyTrendCard } from '@/features/dashboard/charts';
 import { fmtDate, MiniStats, StatGrid } from '@/features/dashboard/widgets';
-import { useAsync } from '@/lib/useAsync';
 import type { LedgerRow } from '@jr/shared';
 import { getTransactions, mySubscriptions, useEarnings, useWallet } from '@/features/finance/api';
 import { orderStats } from '@/features/commerce/api';
@@ -62,8 +61,8 @@ function ReferralLinkBox({ code }: { code: string }) {
 }
 
 export function MemberDashboard() {
-  const { data, loading, error, reload } = useAsync(fetchMemberDashboard, []);
-  // Identity comes from the signed-in account (real); the metrics below are still sample data until Phases 3–5.
+  const notes = useQuery({ queryKey: ['comms', 'notifications', 'recent'], queryFn: () => listNotifications({ pageSize: 4 }) });
+  const news = useQuery({ queryKey: ['comms', 'announcements'], queryFn: listAnnouncements });
   const { user } = useAuth();
   const firstName = user?.name.split(' ')[0] ?? '';
   const memberId = user?.memberId;
@@ -80,7 +79,6 @@ export function MemberDashboard() {
   const subs = useQuery({ queryKey: ['finance', 'subscriptions'], queryFn: mySubscriptions });
   const r = summary.data;
 
-  if (error) return <Card><ErrorState onRetry={reload} /></Card>;
 
   return (
     <div className="grid grid-cols-1 gap-5 animate-fade-in">
@@ -89,7 +87,7 @@ export function MemberDashboard() {
         breadcrumbs={[{ label: 'Member', to: '/member' }, { label: 'Dashboard' }]}
         title="Dashboard"
         description="Here’s what’s happening with your account today."
-        actions={<><SampleDataBadge label="Notifications & announcements are sample data" /><ButtonLink to="/member/purchases/new" size="sm" leftIcon={<Plus className="size-4" />}>New purchase</ButtonLink></>}
+        actions={<><ButtonLink to="/member/purchases/new" size="sm" leftIcon={<Plus className="size-4" />}>New purchase</ButtonLink></>}
       />
 
       <section className="relative flex flex-wrap items-center justify-between gap-5 overflow-hidden rounded-card bg-[linear-gradient(120deg,var(--color-navy-900),var(--color-navy-700)_55%,#3b3fb8)] p-6 text-white">
@@ -109,7 +107,7 @@ export function MemberDashboard() {
       </section>
 
       <StatGrid
-        loading={loading || summary.isLoading}
+        loading={summary.isLoading || wallet.isLoading || orders.isLoading}
         stats={[
           { label: 'Wallet balance', value: wallet.data ? formatINR(wallet.data.mainPaise) : '', icon: Wallet, tone: 'blue', note: wallet.data ? `${formatINR(wallet.data.earningsPaise)} in earnings${wallet.data.testMode ? ' · test money' : ''}` : '' },
           { label: 'Total earnings', value: earn.data ? formatINR(earn.data.paidPaise) : '', icon: TrendingUp, tone: 'green', note: earn.data ? `${formatINR(earn.data.pendingPaise)} waiting` : '' },
@@ -119,7 +117,7 @@ export function MemberDashboard() {
       />
 
       <MiniStats
-        loading={loading || summary.isLoading}
+        loading={summary.isLoading || wallet.isLoading || orders.isLoading}
         items={[
           { label: 'Active orders', value: String(o?.active ?? ''), to: '/member/purchases/history' },
           { label: 'Pending orders', value: String(o?.pending ?? ''), to: '/member/purchases/history' },
@@ -136,21 +134,22 @@ export function MemberDashboard() {
         <Card className="p-5">
           <CardHeader title="Notifications" description="Latest activity" actions={<Link to="/member/notifications" className="text-[13px] font-semibold text-brand-600 hover:underline">View all</Link>} />
           <ul className="grid gap-1">
-            {loading || !data
+            {notes.isLoading
               ? Array.from({ length: 3 }, (_, i) => <li key={i}><Skeleton className="h-12 w-full" /></li>)
-              : data.notifications.map((n) => (
-                  <li key={n.text} className="flex gap-3 rounded-[10px] p-2">
-                    <span className={cn('mt-1.5 size-2 flex-none rounded-full', n.unread ? 'bg-brand-600' : 'bg-line')} aria-label={n.unread ? 'Unread' : undefined} />
-                    <div><p className="text-[13.5px] text-ink-2">{n.text}</p><span className="text-[12px] text-muted">{n.time}</span></div>
+              : !notes.data?.data.length ? <li className="p-2 text-[14px] text-muted">Nothing new.</li> : notes.data.data.map((n) => (
+                  <li key={n.id} className="flex gap-3 rounded-[10px] p-2">
+                    <span className={cn('mt-1.5 size-2 flex-none rounded-full', !n.read ? 'bg-brand-600' : 'bg-line')} aria-label={!n.read ? 'Unread' : undefined} />
+                    <div><p className="text-[13.5px] text-ink-2">{n.link ? <Link to={n.link} className="hover:text-brand-600">{n.title}</Link> : n.title}</p><span className="text-[12px] text-muted">{fmtDate(n.createdAt)}</span></div>
                   </li>
                 ))}
           </ul>
           <h4 className="mt-4 mb-2.5 text-[14px] font-bold">Announcements</h4>
           <div className="grid gap-2.5">
-            {data?.announcements.map((a) => (
-              <div key={a.title} className="flex gap-3 rounded-xl border border-line p-3.5">
-                <IconTile icon={a.tone === 'amber' ? Cake : Megaphone} tone={a.tone} size="sm" />
-                <div><b className="text-[14px]">{a.title}</b><p className="text-[13px] text-muted">{a.body}</p></div>
+            {news.data?.data.length === 0 && <p className="text-[14px] text-muted">No announcements.</p>}
+            {news.data?.data.slice(0, 3).map((a) => (
+              <div key={a.id} className="flex gap-3 rounded-xl border border-line p-3.5">
+                <IconTile icon={Megaphone} tone="violet" size="sm" />
+                <div><b className="text-[14px]">{a.title}</b><p className="line-clamp-3 text-[13px] text-muted">{a.body}</p></div>
               </div>
             ))}
           </div>

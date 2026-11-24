@@ -10,6 +10,8 @@ export interface AuthContext {
   user: { id: string; name: string; email: string; roles: Role[]; mustChangePassword: boolean };
   sessionId: string;
   permissions: Set<string>;
+  /** When the person last entered their password in this session. */
+  passwordAt: Date;
 }
 
 declare global {
@@ -40,7 +42,7 @@ export const authenticate: RequestHandler = async (req, _res, next) => {
 
   const [user, sessionOk] = await Promise.all([
     UserModel.findById(claims.sub, { name: 1, email: 1, roles: 1, roleIds: 1, status: 1, mustChangePassword: 1 }).lean(),
-    SessionModel.exists({ _id: claims.sid, userId: claims.sub, revokedAt: null, expiresAt: { $gt: new Date() } }),
+    SessionModel.findOne({ _id: claims.sid, userId: claims.sub, revokedAt: null, expiresAt: { $gt: new Date() } }, { reauthAt: 1, createdAt: 1 }).lean(),
   ]);
   if (!user || !sessionOk) throw unauthorized('Your session has ended. Please log in again.', 'SESSION_EXPIRED');
   if (user.status !== 'active') throw unauthorized('This account is not active. Contact support for help.', 'ACCOUNT_DISABLED');
@@ -49,6 +51,7 @@ export const authenticate: RequestHandler = async (req, _res, next) => {
     user: { id: String(user._id), name: user.name, email: user.email, roles: user.roles as Role[], mustChangePassword: !!user.mustChangePassword },
     sessionId: claims.sid,
     permissions: new Set(await resolvePermissions(user)),
+    passwordAt: sessionOk.reauthAt ?? sessionOk.createdAt,
   };
 
   if (user.mustChangePassword && !PASSWORD_CHANGE_ALLOWED.some((p) => req.originalUrl.startsWith(p))) {
@@ -62,6 +65,14 @@ export const requirePermission = (...perms: string[]): RequestHandler => (req, _
   if (!req.auth) throw unauthorized();
   const missing = perms.filter((p) => !req.auth!.permissions.has(p));
   if (missing.length) throw forbidden('You don’t have permission to do this', 'FORBIDDEN', { missing });
+  next();
+};
+
+const RECENT_MS = 15 * 60_000;
+/** For actions that move money: the password must have been entered in this session within 15 minutes. */
+export const requireRecentAuth: RequestHandler = (req, _res, next) => {
+  if (!req.auth) throw unauthorized();
+  if (Date.now() - req.auth.passwordAt.getTime() > RECENT_MS) throw forbidden('Confirm your password to continue', 'REAUTH_REQUIRED');
   next();
 };
 

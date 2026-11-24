@@ -18,7 +18,14 @@ const schema = z
       .refine((v) => Buffer.from(v, 'base64').length === 32, 'FIELD_ENCRYPTION_KEY must be 32 bytes, base64-encoded'),
     ACCESS_TOKEN_TTL_MIN: z.coerce.number().int().min(1).max(60).default(15),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
-    MESSAGING_DRIVER: z.enum(['console']).default('console'),
+    MESSAGING_DRIVER: z.enum(['console', 'live']).default('console'),
+    /** Live messaging (MESSAGING_DRIVER=live). Each channel works only if its values are set. */
+    SMTP_URL: z.string().optional(),
+    MAIL_FROM: z.string().optional(),
+    SMS_HTTP_URL: z.url({ protocol: /^https?$/ }).optional(),
+    SMS_HTTP_TOKEN: z.string().optional(),
+    WHATSAPP_HTTP_URL: z.url({ protocol: /^https?$/ }).optional(),
+    WHATSAPP_HTTP_TOKEN: z.string().optional(),
     /** Online payments. `none` turns checkout off; `sandbox` simulates a gateway (no real money moves). */
     PAYMENT_DRIVER: z.enum(['none', 'sandbox']).default('none'),
     /** Must be set on purpose to use fake payments on a production server (demo sites only). */

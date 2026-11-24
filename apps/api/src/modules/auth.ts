@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import mongoose from 'mongoose';
 import {
   changePasswordSchema, forgotPasswordSchema, loginSchema, normalizeMobile, registerSchema, resendOtpSchema,
-  resetPasswordWithCodeSchema, verifyRegistrationSchema, type RegisterResponse,
+  resetPasswordWithCodeSchema, verifyRegistrationSchema, type RegisterResponse, reauthSchema,
 } from '@jr/shared';
 import { UserModel, type UserDoc } from '../models/user';
 import { AppError, conflict, notFound, unauthorized } from '../core/errors';
@@ -12,6 +12,8 @@ import { authenticate } from '../middleware/auth';
 import { csrfProtect, loginLimiter, otpLimiter, recoveryLimiter } from '../middleware/security';
 import { issueOtp, verifyOtp } from '../services/otp';
 import { getSettings } from '../services/settings';
+import { SessionModel } from '../models/security';
+import { notify } from '../services/notify';
 import { audit } from '../services/audit';
 import { createMemberRecord, findSponsor, toAuthUser } from '../services/identity';
 import { createVendorShell } from '../services/vendors';
@@ -132,6 +134,12 @@ router.post('/register/verify', otpLimiter, async (req, res) => {
       await audit(req, { actorId: user.id, action: 'auth.register', entity: 'user', entityId: user.id, summary: `Registered as a member${referred}` }, session);
     }
   });
+  await notify(user._id, { event: 'registration', title: 'Welcome to JustReference', body: 'Your account is ready.', link: user.roles.includes('vendor') ? '/vendor' : '/member', key: 'welcome' });
+  const sponsor = (await MemberModel.findOne({ userId: user._id }, { sponsorUserId: 1 }).lean())?.sponsorUserId;
+  if (sponsor) {
+    const su = await UserModel.findById(sponsor, { roles: 1 }).lean();
+    await notify(sponsor, { event: 'referral', title: 'Someone joined with your referral', body: user.name, link: su?.roles.includes('vendor') ? '/vendor/referrals/all' : '/member/referrals/direct', key: `referral:${user.id}` });
+  }
   // Vendor rights were added to the user inside the transaction; reload them so the response includes them.
   user.roleIds = ((await UserModel.findById(user._id, { roleIds: 1 }).lean())?.roleIds ?? []) as never;
   res.status(201).json(await startSession(req, res, user, true));
@@ -254,6 +262,24 @@ router.post('/change-password', authenticate, async (req, res) => {
   const revoked = await revokeUserSessions(user.id, 'password_changed', req.auth!.sessionId);
   await audit(req, { action: 'auth.password_change', entity: 'user', entityId: user.id, summary: `Changed password; signed out ${revoked} other session(s)` });
   res.json({ user: await toAuthUser(user.toObject()), signedOutOtherSessions: revoked });
+});
+
+/** Re-enter the password before a money action. Wrong tries count towards the account lockout. */
+router.post('/reauth', authenticate, loginLimiter, async (req, res) => {
+  const { password } = parse(reauthSchema, req.body);
+  const user = await UserModel.findById(req.auth!.user.id).select('+passwordHash');
+  if (!user) throw unauthorized();
+  if (user.lockedUntil && user.lockedUntil > new Date()) throw new AppError(429, 'ACCOUNT_LOCKED', 'Too many wrong tries. Try again in 15 minutes.');
+  if (!(await verifySecret(user.passwordHash, password))) {
+    const failed = (user.failedLoginCount ?? 0) + 1;
+    const lock = failed >= MAX_FAILED_LOGINS;
+    await UserModel.updateOne({ _id: user._id }, lock ? { failedLoginCount: 0, lockedUntil: new Date(Date.now() + LOCKOUT_MINUTES * 60_000) } : { failedLoginCount: failed });
+    throw new AppError(400, 'WRONG_PASSWORD', 'That password is incorrect', { password: 'That password is incorrect' });
+  }
+  await UserModel.updateOne({ _id: user._id }, { failedLoginCount: 0 });
+  await SessionModel.updateOne({ _id: req.auth!.sessionId }, { reauthAt: new Date() });
+  await audit(req, { action: 'auth.reauth', entity: 'user', entityId: user.id, summary: 'Confirmed their password' });
+  res.json({ ok: true });
 });
 
 export default router;

@@ -17,6 +17,7 @@ import { createMemberRecord, resolvePermissions } from '../services/identity';
 import { createVendorShell, maskPan, syncVendorListings, toVendorSelf } from '../services/vendors';
 import { revokeUserSessions } from '../services/sessions';
 import { uniqueSlug } from '../services/slug';
+import { notify } from '../services/notify';
 import { audit } from '../services/audit';
 import { sendPrivate } from './vendor';
 
@@ -193,6 +194,7 @@ router.post('/vendors/:id/decision', requirePermission('vendors.approve'), async
       summary: decision === 'approve' ? `Approved vendor ${v.businessName}` : `Rejected vendor ${v.businessName}: ${reason}`,
     }, session);
   });
+  await notify(v.userId, { event: 'account', title: decision === 'approve' ? 'Your business is approved' : 'Your business profile needs changes', body: reason ?? '', link: '/vendor/profile', key: `vendor:${decision}:${v.submittedAt?.getTime() ?? 0}` });
   res.json({ id: v.id, status: v.status });
 });
 

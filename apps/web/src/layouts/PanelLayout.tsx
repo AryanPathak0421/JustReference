@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { ScrollReset } from '@/lib/ScrollReset';
 import * as RD from '@radix-ui/react-dialog';
 import * as DM from '@radix-ui/react-dropdown-menu';
-import { AlertTriangle, ArrowLeftRight, Bell, ChevronDown, ChevronRight, KeyRound, LogOut, Mail, PanelLeft, Search, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, ChevronDown, ChevronRight, KeyRound, LogOut, PanelLeft, X } from 'lucide-react';
 import { Avatar, Logo } from '@/design-system';
 import { cn } from '@/lib/cn';
 import { PANELS, type NavGroup, type NavItem, type PanelConfig, type PanelKey } from '@/panels/navigation';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { GlobalSearch, HeaderIcons, ReauthDialog } from '@/features/comms/components';
 import { usePublicStatus } from '@/features/system/api';
 
 function isActivePath(pathname: string, to: string, base: string) {
@@ -163,15 +164,9 @@ export function PanelLayout({ panelKey }: { panelKey: PanelKey }) {
             <PanelLeft className="size-5" />
           </button>
           <div className="lg:hidden"><Logo className="[&>span:last-child]:hidden sm:[&>span:last-child]:inline" /></div>
-          <label className="relative hidden max-w-md flex-1 md:block">
-            <span className="sr-only">Search</span>
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle" />
-            {/* Global search is wired to the API in Phase 6. */}
-            <input placeholder="Search (coming in Phase 6)" disabled className="h-10 w-full rounded-[10px] border border-line bg-canvas pr-3 pl-9 text-[14px] outline-none disabled:cursor-not-allowed" />
-          </label>
+          <GlobalSearch panel={panel} />
           <div className="ml-auto flex items-center gap-1.5">
-            <Link to={`${panel.base}/messages`} className="grid size-10 place-items-center rounded-[10px] text-ink-2 hover:bg-canvas" aria-label="Messages"><Mail className="size-[18px]" /></Link>
-            <Link to={`${panel.base}/notifications`} className="grid size-10 place-items-center rounded-[10px] text-ink-2 hover:bg-canvas" aria-label="Notifications"><Bell className="size-[18px]" /></Link>
+            <HeaderIcons panel={panel} />
             <UserMenu panel={panel} />
           </div>
         </header>
@@ -180,6 +175,7 @@ export function PanelLayout({ panelKey }: { panelKey: PanelKey }) {
         </main>
       </div>
       <ScrollReset />
+      <ReauthDialog />
     </div>
   );
 }

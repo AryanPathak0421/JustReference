@@ -23,6 +23,9 @@ import publicCatalogRouter, { mediaRouter } from './modules/public-catalog';
 import { authenticate, requireRole } from './middleware/auth';
 import adminMemberExtrasRouter from './modules/admin-member-extras';
 import { adminCommerceRouter, buyerRouter, vendorCommerceRouter } from './modules/commerce';
+import { adminCommsRouter, attachmentsRouter, contactRouter, feedbackRouter, messagesRouter, notificationsRouter, ticketsRouter } from './modules/comms';
+import { adminContentRouter, contentRouter } from './modules/content';
+import { adminInsightsRouter, reportsRouter, searchRouter } from './modules/insights';
 import { adminFinanceRouter, financeRouter } from './modules/finance';
 import { adminBiddingRouter, projectRequestsRouter, vendorBiddingRouter } from './modules/bidding';
 
@@ -89,6 +92,15 @@ export function createApp() {
   v1.use('/vendor', vendorRouter, vendorCommerceRouter, vendorBiddingRouter);
   v1.use('/project-requests', projectRequestsRouter);
   v1.use('/finance', financeRouter);
+  v1.use('/notifications', notificationsRouter);
+  v1.use('/attachments', attachmentsRouter);
+  v1.use('/messages', messagesRouter);
+  v1.use('/tickets', ticketsRouter);
+  v1.use('/contact', contactRouter);
+  v1.use('/feedback', feedbackRouter);
+  v1.use('/content', contentRouter);
+  v1.use('/reports', reportsRouter);
+  v1.use('/search', searchRouter);
   v1.use('/admin/members', adminMemberExtrasRouter, membersRouter);
   const admin = Router();
   admin.use(authenticate, requireRole('admin', 'super_admin'));
@@ -97,6 +109,9 @@ export function createApp() {
   admin.use(adminCommerceRouter);
   admin.use(adminBiddingRouter);
   admin.use(adminFinanceRouter);
+  admin.use(adminCommsRouter);
+  admin.use(adminContentRouter);
+  admin.use(adminInsightsRouter);
   v1.use('/admin', admin);
   v1.use('/settings', settingsRouter);
   v1.use('/audit', auditRouter);

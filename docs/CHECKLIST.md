@@ -224,11 +224,35 @@ Everything that moves money is **off by default**; a Super Admin sets the values
 **Assumptions to confirm:** several levels pay from one sale up to the sale amount; a blocked member's share is not passed up; a coupon is freed only if the order was never paid; an E-PIN can be used by whoever holds the code; a new subscription starts when the current one ends.
 
 ## Phase 6: Communication, reports, hardening
-| Item | Status |
-|---|---|
-| Internal messaging (inbox/outbox/drafts, admin ↔ vendor) | ⬜ |
-| Support tickets (number, attachments, statuses, admin reply, history) | ⬜ |
-| Notifications: in-app + email/SMS/WhatsApp templates, provider settings | ⬜ |
-| Reports (credit, debit, balance, earnings, referral income, TDS, sales, purchase, invoice, vendor payment, wallet, withdrawal) with PDF/Excel/print | ⬜ |
-| CMS: about, legal pages, blog, testimonials, advertisements | ⬜ |
-| Security review, load test, deployment runbook | ⬜ |
+
+| Item | Status | Notes / how it was tested |
+|---|---|---|
+| Messages: inbox, outbox, drafts, replies, attachments; member/vendor ↔ team, admin ↔ admin | ✅ | API tests + Playwright |
+| Support tickets: number, category, attachments, statuses, replies, history; contact form creates one | ✅ | API tests + Playwright (contact form: API tests) |
+| In-app notifications for registration, orders, payments, referrals, commissions, wallet, support, messages, bids and approvals; unread counts | ✅ | API tests + Playwright |
+| Email / SMS / WhatsApp: per-event switches, template, channel status, test button | ✅ settings | API tests with the console driver. **No real provider has been tried** |
+| Announcements, advertisements, pages, blog, testimonials | ✅ | API tests + Playwright (announcements, blog) |
+| Reviews of completed orders, moderated, shown on vendor profiles | ✅ | API tests + Playwright |
+| 12 reports with dates, search, sort, totals, PDF, Excel, CSV, print | ✅ | API tests + Playwright downloads; print not tested |
+| Search in every panel, limited by role and permission | ✅ | API tests + Playwright |
+| Dashboards, analytics, system health on real data; all mocks removed | ✅ | Playwright |
+| Password re-entry for money actions | ✅ | API tests + Playwright |
+| Security review, deployment runbook | ✅ | [SECURITY.md](SECURITY.md), [DEPLOYMENT.md](DEPLOYMENT.md). Self-review, not an independent test |
+| Load test | ✅ local only | One process on the development PC, see below |
+| Every menu link in all four panels opens a real screen and fits 375 px | ✅ | Playwright |
+
+**Load test (development PC, 50 parallel clients, local database):** product search 365 requests/s (median 114 ms, p99 356 ms), home page 1,491/s (p99 63 ms), health 6,003/s; no errors. Render's free plan will be far slower. The per-IP limit (300/min) answered 429 as designed.
+
+**Not done, and why:**
+- **Live payment gateway, SMS, WhatsApp, email, cloud storage:** need your accounts and keys. Steps are in DEPLOYMENT.md.
+- **Privacy policy, terms, refund policy:** text must come from your legal adviser; the pages say they aren't published yet.
+- **Investment income, member selling, what subscriptions unlock:** business decisions.
+- **MS Graph, IIS, SQL Server, ASP.NET:** replaced by the MERN stack you asked for. **SSR for SEO:** not built.
+- **Notification retries:** a failed outside message is logged, not retried.
+- **Non-English names in PDFs** print as "?" (the built-in PDF fonts cover Latin letters only).
+
+**Bugs found and fixed during Phase 6 testing:**
+1. The referral tree still scrolled sideways on phones with longer names. The Phase 3 fix was incomplete, and that checklist entry was wrong.
+2. The public header was 5 px too wide on phones for visitors who aren't signed in.
+3. `sharp` (image processing) had high-severity vulnerabilities; upgraded.
+4. The architecture promised password re-entry for financial actions, but it had never been built.

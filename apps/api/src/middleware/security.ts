@@ -26,6 +26,10 @@ export const loginLimiter = limiter(15 * 60_000, 20, 'Too many login attempts fr
 export const otpLimiter = limiter(15 * 60_000, 30, 'Too many verification attempts. Try again later.');
 export const recoveryLimiter = limiter(60 * 60_000, 10, 'Too many password reset requests. Try again in an hour.');
 
+export const publicFormLimiter = limiter(60 * 60_000, 5, 'Too many messages from this network. Try again in an hour.');
+export const uploadLimiter = limiter(10 * 60_000, 40, 'Too many uploads. Try again in a few minutes.');
+export const exportLimiter = limiter(60_000, 60, 'Too many report requests. Please wait a moment.');
+
 /* ---------------- CSRF (double-submit) for endpoints authenticated by cookie */
 export const csrfProtect: RequestHandler = (req, _res, next) => {
   const cookie = req.cookies?.[CSRF_COOKIE] as string | undefined;

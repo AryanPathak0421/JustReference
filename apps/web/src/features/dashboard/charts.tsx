@@ -46,7 +46,7 @@ export function MoneyTrendCard({ title, data, names, loading }: { title: string;
         description={`Last ${RANGE_N[range]} months`}
         actions={<Segmented label="Range" value={range} onChange={setRange} options={(['3M', '6M', '12M'] as Range[]).map((r) => ({ value: r, label: r }))} />}
       />
-      <Legend items={[[names.a, BLUE], [names.b, VIOLET]]} />
+      <Legend items={[[names.a, BLUE], ...(names.b ? [[names.b, VIOLET] as [string, string]] : [])]} />
       {loading ? <Skeleton className="h-60 w-full" /> : (
         <div className="h-60" role="img" aria-label={`${title} chart`}>
           <ResponsiveContainer width="100%" height="100%">
@@ -62,7 +62,7 @@ export function MoneyTrendCard({ title, data, names, loading }: { title: string;
               <YAxis tick={axis} axisLine={false} tickLine={false} width={64} tickFormatter={(v: number) => formatINR(v, { compact: true })} />
               <Tooltip content={<MoneyTooltip names={names} />} cursor={{ stroke: '#cfd6e4' }} />
               <Area type="monotone" dataKey="a" stroke={BLUE} strokeWidth={2.5} fill="url(#fillA)" activeDot={{ r: 5, strokeWidth: 2.5, fill: '#fff' }} />
-              <Area type="monotone" dataKey="b" stroke={VIOLET} strokeWidth={2} strokeDasharray="5 5" fill="none" activeDot={{ r: 4 }} />
+              {names.b && <Area type="monotone" dataKey="b" stroke={VIOLET} strokeWidth={2} strokeDasharray="5 5" fill="none" activeDot={{ r: 4 }} />}
             </AreaChart>
           </ResponsiveContainer>
         </div>

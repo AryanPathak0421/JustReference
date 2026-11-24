@@ -5,6 +5,7 @@ import { LISTING_TYPES, type ListingType } from '@jr/shared';
 import { Alert, Badge, Button, ButtonLink, Card, EmptyState, ErrorState, Input, PageHeader, Segmented, Select, Skeleton } from '@/design-system';
 import { useListings, useVendorFacets, useVendorProfile, useVendors, type VendorQuery } from '@/features/catalog/api';
 import { ListingCard, ListingCardSkeleton, SampleTag, VendorCard, VendorLogo } from '@/features/catalog/components';
+import { VendorReviews } from '@/features/comms/reviews';
 import { ApiError } from '@/lib/api';
 import { cn } from '@/lib/cn';
 
@@ -165,6 +166,7 @@ export function VendorProfilePage() {
         </div>
       </Card>
 
+      <VendorReviews slug={v.slug} />
       <div className="mt-8 mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-extrabold tracking-tight">Listings</h2>
         <Segmented label="Listing type" value={type} onChange={setType} options={LISTING_TYPES.map((t) => ({ value: t, label: `${TYPE_LABEL[t]} (${v.listingCounts[t]})` }))} />

@@ -7,7 +7,7 @@ import {
   type BusinessRow, type BusinessSummary, type CommissionRow, type CommissionRuleRow, type CouponRow, type EarningsSummary, type EpinRow, type LedgerRow, type MoneySummary, type MyCoupon, type PlanRow, type RewardRow,
   type SettlementRow, type SubscriptionView, type TdsRow, type WalletView, type WithdrawalRow,
 } from '@jr/shared';
-import { authenticate, requirePermission, requireRole } from '../middleware/auth';
+import { authenticate, requirePermission, requireRecentAuth, requireRole } from '../middleware/auth';
 import { otpLimiter } from '../middleware/security';
 import { CommissionModel, CommissionRuleModel, CouponModel, EpinModel, LedgerModel, PlanModel, RedemptionModel, RewardModel, SettlementModel, SubscriptionModel, TdsModel, WalletModel, WithdrawalModel, type CommissionRule, type Coupon, type Plan } from '../models/finance';
 import { OrderModel } from '../models/commerce';
@@ -336,20 +336,20 @@ adminFinanceRouter.get('/finance/balances', perm('wallet.view'), async (req, res
   res.json(paged(r!.rows.map((x) => ({ id: String(x._id), ...who(x._id), mainPaise: x.main, earningsPaise: x.earnings })), q.page, q.pageSize, r!.total[0]?.n ?? 0));
 });
 adminFinanceRouter.get('/finance/withdrawals', perm('wallet.view'), (req, res) => withdrawalList(req, res, {}, true));
-adminFinanceRouter.post('/finance/withdrawals/:id/decision', perm('wallet.view', 'wallet.payout'), async (req, res) => {
+adminFinanceRouter.post('/finance/withdrawals/:id/decision', requireRecentAuth, perm('wallet.view', 'wallet.payout'), async (req, res) => {
   const input = parse(withdrawalDecisionSchema, req.body);
   const w = await decideWithdrawal(assertObjectId(req.params.id, 'Withdrawal'), me(req), input.decision, input.reason);
   await audit(req, { action: 'withdrawal.decision', entity: 'withdrawal', entityId: w.id, summary: `${input.decision === 'approve' ? 'Approved' : 'Rejected'} ${w.requestNo} (${rs(w.amountPaise)})` });
   res.json({ status: w.status });
 });
-adminFinanceRouter.post('/finance/withdrawals/:id/paid', perm('wallet.view', 'wallet.payout'), async (req, res) => {
+adminFinanceRouter.post('/finance/withdrawals/:id/paid', requireRecentAuth, perm('wallet.view', 'wallet.payout'), async (req, res) => {
   const { utr } = parse(withdrawalPaidSchema, req.body);
   const w = await markWithdrawalPaid(assertObjectId(req.params.id, 'Withdrawal'), me(req), utr);
   await audit(req, { action: 'withdrawal.paid', entity: 'withdrawal', entityId: w.id, summary: `Marked ${w.requestNo} paid (${rs(w.netPaise)}), UTR ${utr}` });
   res.json({ status: w.status });
 });
 adminFinanceRouter.get('/finance/commissions', perm('commissions.view'), (req, res) => commissionList(req, res, {}, true));
-adminFinanceRouter.post('/finance/commissions/pay', perm('commissions.view', 'commissions.pay'), async (req, res) => {
+adminFinanceRouter.post('/finance/commissions/pay', requireRecentAuth, perm('commissions.view', 'commissions.pay'), async (req, res) => {
   const { ids } = parse(idsSchema, req.body);
   let paid = 0;
   const failed: { id: string; message: string }[] = [];
@@ -361,7 +361,7 @@ adminFinanceRouter.post('/finance/commissions/pay', perm('commissions.view', 'co
 });
 adminFinanceRouter.get('/finance/tds', perm('tds.view'), (req, res) => tdsList(req, res));
 adminFinanceRouter.get('/finance/rewards', perm('rewards.manage'), (req, res) => rewardList(req, res));
-adminFinanceRouter.post('/finance/rewards', perm('rewards.manage'), async (req, res) => {
+adminFinanceRouter.post('/finance/rewards', requireRecentAuth, perm('rewards.manage'), async (req, res) => {
   const input = parse(rewardSchema, req.body);
   await payReward(me(req), input);
   await audit(req, { action: 'reward.pay', entity: 'member', entityId: input.memberId, summary: `Reward for ${input.memberId}: ${input.title}${input.kind === 'cash' ? ` (${rs(input.amount!)})` : ''}` });
@@ -380,7 +380,7 @@ adminFinanceRouter.get('/coupons', perm('coupons.manage'), async (req, res) => {
   const [rows, total] = await Promise.all([CouponModel.find(filter).sort({ createdAt: -1 }).skip((q.page - 1) * q.pageSize).limit(q.pageSize).lean(), CouponModel.countDocuments(filter)]);
   res.json(paged(rows.map((r) => toCoupon(r as never)), q.page, q.pageSize, total));
 });
-adminFinanceRouter.post('/coupons', perm('coupons.manage'), async (req, res) => {
+adminFinanceRouter.post('/coupons', requireRecentAuth, perm('coupons.manage'), async (req, res) => {
   const i = parse(couponSchema, req.body);
   const c = await CouponModel.create({ ...i, minOrderPaise: i.minOrder, maxDiscountPaise: i.maxDiscount, validFrom: new Date(`${i.validFrom}T00:00:00+05:30`), validTo: new Date(`${i.validTo}T23:59:59.999+05:30`) });
   await audit(req, { action: 'coupon.create', entity: 'coupon', entityId: c.id, summary: `Created coupon ${c.code}` });
@@ -409,7 +409,7 @@ adminFinanceRouter.get('/epins', perm('epins.manage'), async (req, res) => {
   const status = parse(z.enum(['fresh', 'issued', 'used', 'blocked']).optional(), req.query.status || undefined);
   await epinRows(req, res, status ? { status } : {});
 });
-adminFinanceRouter.post('/epins', perm('epins.manage'), async (req, res) => {
+adminFinanceRouter.post('/epins', requireRecentAuth, perm('epins.manage'), async (req, res) => {
   const input = parse(epinGenerateSchema, req.body);
   const codes = await generateEpins(input);
   await audit(req, { action: 'epin.generate', entity: 'plan', entityId: input.planId, summary: `Generated ${codes.length} E-PIN(s)${input.memberId ? ` for ${input.memberId}` : ''}` });
@@ -465,7 +465,7 @@ adminFinanceRouter.post('/commission-rules', superOnly, async (req, res) => {
   await audit(req, { action: 'commission_rule.create', entity: 'commission_rule', entityId: r.id, summary: `Created commission rule ${r.name} (inactive)` });
   res.status(201).json(toRule(r as never));
 });
-adminFinanceRouter.put('/commission-rules/:id', superOnly, async (req, res) => {
+adminFinanceRouter.put('/commission-rules/:id', requireRecentAuth, superOnly, async (req, res) => {
   const id = assertObjectId(req.params.id, 'Rule');
   const fields = ruleFields(parse(commissionRuleSchema, req.body));
   const before = await CommissionRuleModel.findById(id).lean();
@@ -475,7 +475,7 @@ adminFinanceRouter.put('/commission-rules/:id', superOnly, async (req, res) => {
   await audit(req, { action: 'commission_rule.update', entity: 'commission_rule', entityId: id, summary: `Updated commission rule ${fields.name}`, meta: { before: before.levels, after: fields.levels } });
   res.json(toRule(r as never));
 });
-adminFinanceRouter.post('/commission-rules/:id/active', superOnly, async (req, res) => {
+adminFinanceRouter.post('/commission-rules/:id/active', requireRecentAuth, superOnly, async (req, res) => {
   const { active } = parse(activeSchema, req.body);
   const id = assertObjectId(req.params.id, 'Rule');
   const before = await CommissionRuleModel.findById(id).lean();

@@ -16,6 +16,7 @@ import { nextSequence } from '../models/system';
 import { activeGateway } from './gateway';
 import { financialYear } from './invoices';
 import { getSettings } from './settings';
+import { notify } from './notify';
 
 type Id = Types.ObjectId | string;
 export const tx = <T>(fn: (s: ClientSession) => Promise<T>) => mongoose.connection.transaction(fn);
@@ -100,11 +101,13 @@ export async function transfer(userId: Id, input: { memberId: string; amount: nu
   await ensureWallets([userId, to.userId], isTest);
   const me = await MemberModel.findOne({ userId }, { memberId: 1 }).lean();
   const key = `transfer:${userId}:${input.idempotencyKey}`;
-  await once(key, userId, async (session) => {
+  const send = () => once(key, userId, async (session) => {
     const common = { isTest, wallet: 'main' as const, amountPaise: input.amount, refId: key };
     await post({ ...common, userId, direction: 'debit', category: 'transfer_out', key, description: `Transfer to ${to.memberId}${input.note ? `: ${input.note}` : ''}` }, session);
     await post({ ...common, userId: to.userId, direction: 'credit', category: 'transfer_in', key: `${key}:in`, description: `Transfer from ${me?.memberId ?? 'a member'}${input.note ? `: ${input.note}` : ''}` }, session);
   });
+  await send();
+  await notify(to.userId, { event: 'wallet', title: `₹${(input.amount / 100).toFixed(2)} received`, body: `From ${me?.memberId ?? 'a member'}`, link: '/member/wallet/transactions', key: `${key}:in` });
 }
 
 /** Earnings → main wallet (own money). Never the other way, so topped-up money can't be withdrawn. */
@@ -155,7 +158,7 @@ export async function decideWithdrawal(id: Id, by: Id, decision: 'approve' | 're
   const w0 = await WithdrawalModel.findById(id).lean();
   if (!w0) throw notFound('Withdrawal');
   if (String(w0.userId) === String(by)) throw conflict('You can’t decide your own withdrawal');
-  return tx(async (session) => {
+  const done = await tx(async (session) => {
     const w = await WithdrawalModel.findOneAndUpdate(
       { _id: id, status: decision === 'approve' ? 'requested' : { $in: ['requested', 'approved'] } },
       { status: decision === 'approve' ? 'approved' : 'rejected', reason, processedBy: by }, { session, new: true },
@@ -164,6 +167,13 @@ export async function decideWithdrawal(id: Id, by: Id, decision: 'approve' | 're
     if (decision === 'reject') await post({ userId: w.userId, isTest: w.isTest, wallet: 'earnings', direction: 'credit', amountPaise: w.amountPaise, category: 'withdrawal_return', key: `withdraw-return:${w.id}`, refId: w.id, description: `Withdrawal ${w.requestNo} returned` }, session);
     return w;
   });
+  await tellWithdrawal(done);
+  return done;
+}
+
+async function tellWithdrawal(w: { id?: string; _id: Types.ObjectId; userId?: Types.ObjectId | null; requestNo: string; status: string; reason?: string | null }) {
+  const u = await UserModel.findById(w.userId, { roles: 1 }).lean();
+  await notify(w.userId, { event: 'wallet', title: `Withdrawal ${w.requestNo} is ${w.status}`, body: w.reason ?? '', link: u?.roles.includes('member') ? '/member/wallet/payouts' : '/vendor/payouts', key: `withdrawal:${w._id}:${w.status}` });
 }
 
 export async function markWithdrawalPaid(id: Id, by: Id, utr: string) {
@@ -172,6 +182,7 @@ export async function markWithdrawalPaid(id: Id, by: Id, utr: string) {
   try {
     const w = await WithdrawalModel.findOneAndUpdate({ _id: id, status: 'approved' }, { status: 'paid', utr, paidAt: new Date(), processedBy: by }, { new: true });
     if (!w) throw conflict('Only approved requests can be marked paid');
+    await tellWithdrawal(w);
     return w;
   } catch (e) {
     if (dupKey(e)) throw conflict('This UTR is already recorded', { utr: 'This UTR is already recorded' });
@@ -234,6 +245,7 @@ export async function createCommissions(orderId: Id) {
 export async function payCommission(id: Id, by: Id) {
   const c0 = await CommissionModel.findById(id).lean();
   if (!c0) throw notFound('Commission');
+  const earner = await UserModel.findById(c0.earnerUserId, { roles: 1 }).lean();
   if (String(c0.earnerUserId) === String(by)) throw conflict('You can’t pay your own commission');
   await ensureWallets([c0.earnerUserId!], c0.isTest);
   await tx(async (session) => {
@@ -250,6 +262,7 @@ export async function payCommission(id: Id, by: Id) {
     await c.save({ session });
     if (gross - tds > 0) await post({ userId: c.earnerUserId!, isTest: c.isTest, wallet: 'earnings', direction: 'credit', amountPaise: gross - tds, category: 'commission', key: `commission:${c.id}`, refId: c.id, description: `Level ${c.level} commission, ${c.orderNo}` }, session);
   });
+  await notify(c0.earnerUserId, { event: 'commission', title: 'Commission paid', body: `Level ${c0.level}, ${c0.orderNo}`, link: earner?.roles.includes('vendor') && !earner.roles.includes('member') ? '/vendor/earnings/commissions' : '/member/earnings/commissions', key: `commission:${c0._id}` });
 }
 
 /** Take back commission and vendor proceeds in proportion to what has been refunded. Safe to call after every refund. */
@@ -366,7 +379,8 @@ export async function payReward(by: Id, input: { memberId: string; kind: 'cash' 
       await r!.save({ session });
       if (amount - tds > 0) await post({ userId: to.userId, isTest, wallet: 'earnings', direction: 'credit', amountPaise: amount - tds, category: 'reward', key, refId: r!.id, description: `Reward: ${input.title}` }, session);
     });
-  } catch (e) { if (!dupKey(e)) throw e; }
+  } catch (e) { if (!dupKey(e)) throw e; return; }
+  await notify(to.userId, { event: 'wallet', title: `Reward: ${input.title}`, body: input.reason, link: `/member/rewards/${input.kind}`, key });
 }
 
 /* ================================================================ Subscriptions & E-PINs */

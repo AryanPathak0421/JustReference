@@ -3,7 +3,7 @@ import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 import { PublicLayout } from '@/layouts/PublicLayout';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { HomePage } from '@/pages/public/HomePage';
-import { NotFoundPage, PlannedPublicPage } from '@/pages/PlannedPages';
+import { NotFoundPage } from '@/pages/PlannedPages';
 import { PanelGuard } from '@/features/auth/guards';
 import type { PanelKey } from '@/panels/navigation';
 import type { ListingType } from '@jr/shared';
@@ -146,6 +146,35 @@ const superMoney: RouteObject[] = [
   { path: 'rewards', lazy: fin((m) => () => <m.RewardsAdminPage panelKey="super-admin" pay />) },
 ];
 
+/* Communication, content and reports (Phase 6) */
+const comms = (pick: (m: typeof import('@/pages/comms/CommsPages')) => ComponentType) => lazy(() => import('@/pages/comms/CommsPages'), pick);
+const manage = (pick: (m: typeof import('@/pages/comms/ManagePages')) => ComponentType) => lazy(() => import('@/pages/comms/ManagePages'), pick);
+const content = (pick: (m: typeof import('@/pages/public/ContentPages')) => ComponentType) => lazy(() => import('@/pages/public/ContentPages'), pick);
+const commsRoutes = (key: PanelKey): RouteObject[] => {
+  const staff = key === 'admin' || key === 'super-admin';
+  return [
+    { path: 'notifications', lazy: comms((m) => () => <m.NotificationsPage panelKey={key} />) },
+    { path: 'announcements', lazy: comms((m) => () => <m.AnnouncementsPage panelKey={key} />) },
+    { path: 'messages', element: <Navigate to="inbox" replace /> },
+    ...(['inbox', 'outbox', 'drafts'] as const).map((box) => ({ path: `messages/${box}`, lazy: comms((m) => () => <m.MessagesPage key={box} panelKey={key} box={box} />) })),
+    ...(staff ? [
+      { path: 'tickets', lazy: comms((m) => () => <m.TicketsPage panelKey={key} />) },
+      { path: 'tickets/:id', lazy: comms((m) => () => <m.TicketPage panelKey={key} />) },
+      { path: 'feedback', lazy: comms((m) => () => <m.FeedbackPage panelKey={key} />) },
+      { path: 'content', lazy: manage((m) => () => <m.ContentPage panelKey={key} />) },
+      { path: 'reports', lazy: manage((m) => () => <m.ReportsPage panelKey={key} />) },
+    ] : [
+      { path: 'messages/documents', lazy: comms((m) => () => <m.MessagesPage key="docs" panelKey={key} box="outbox" compose />) },
+      { path: 'support', element: <Navigate to="tickets" replace /> },
+      { path: 'support/new', lazy: comms((m) => () => <m.NewTicketPage panelKey={key} />) },
+      { path: 'support/tickets', lazy: comms((m) => () => <m.TicketsPage key="open" panelKey={key} />) },
+      { path: 'support/history', lazy: comms((m) => () => <m.TicketsPage key="done" panelKey={key} done />) },
+      { path: 'support/tickets/:id', lazy: comms((m) => () => <m.TicketPage panelKey={key} />) },
+      { path: 'reports', lazy: manage((m) => () => <m.ReportsPage panelKey={key} />) },
+    ]),
+  ];
+};
+
 const dashboards: Record<PanelKey, () => Promise<{ Component: ComponentType }>> = {
   member: lazy(() => import('@/pages/panels/MemberDashboard'), (m) => m.MemberDashboard),
   vendor: lazy(() => import('@/pages/panels/VendorDashboard'), (m) => m.VendorDashboard),
@@ -160,6 +189,8 @@ const PANEL_ROUTES: Record<PanelKey, RouteObject[]> = {
     ...referralRoutes('member'),
     ...memberCommerce,
     ...memberMoney,
+    ...commsRoutes('member'),
+    { path: 'advertisements', lazy: comms((m) => m.AdvertisementsPage) },
   ],
   vendor: [
     { path: 'profile', lazy: lazy(() => import('@/pages/vendor/BusinessProfilePage'), (m) => m.BusinessProfilePage) },
@@ -168,6 +199,7 @@ const PANEL_ROUTES: Record<PanelKey, RouteObject[]> = {
     ...referralRoutes('vendor'),
     ...vendorCommerce,
     ...vendorMoney,
+    ...commsRoutes('vendor'),
   ],
   admin: [
     { path: 'members/all', lazy: Members('admin', 'all') },
@@ -178,7 +210,8 @@ const PANEL_ROUTES: Record<PanelKey, RouteObject[]> = {
     // Later-phase member screens must be listed before `members/:id` so they aren't read as an id.
     { path: 'members/bank-details', lazy: BankDetails('admin') },
     { path: 'members/referrals', lazy: AdminReferrals('admin') },
-    ...['reports', 'messages'].map((p) => ({ path: `members/${p}`, lazy: Planned('admin') })),
+    { path: 'members/reports', lazy: manage((m) => () => <m.ReportsPage panelKey="admin" initial="members" />) },
+    { path: 'members/messages', lazy: comms((m) => () => <m.MessagesPage panelKey="admin" box="inbox" kind="member" />) },
     { path: 'members/:id', lazy: MemberDetail('admin') },
     { path: 'member-control/blacklist', lazy: Members('admin', 'blacklist') },
     { path: 'member-control/allow', lazy: Members('admin', 'allow') },
@@ -196,6 +229,7 @@ const PANEL_ROUTES: Record<PanelKey, RouteObject[]> = {
     ...catalogRoutes('admin', 'admin'),
     ...adminCommerce,
     ...adminMoney,
+    ...commsRoutes('admin'),
   ],
   'super-admin': [
     { path: 'admins', lazy: lazy(() => import('@/pages/super/AdminsPage'), (m) => m.AdminsPage) },
@@ -206,6 +240,10 @@ const PANEL_ROUTES: Record<PanelKey, RouteObject[]> = {
     { path: 'members/referrals', lazy: AdminReferrals('super-admin') },
     { path: 'members/:id', lazy: MemberDetail('super-admin') },
     ...superMoney,
+    ...commsRoutes('super-admin'),
+    { path: 'analytics', lazy: manage((m) => m.AnalyticsPage) },
+    { path: 'messaging', lazy: manage((m) => () => <m.MessagingPage panelKey="super-admin" />) },
+    { path: 'health', lazy: manage((m) => m.HealthPage) },
     { path: 'payment-gateway', lazy: lazy(() => import('@/pages/super/PaymentGatewayPage'), (m) => m.PaymentGatewayPage) },
     { path: 'settings', lazy: Settings('super-admin') },
     { path: 'maintenance', lazy: Maintenance('super-admin') },
@@ -246,8 +284,12 @@ export const router = createBrowserRouter([
       { path: 'vendors', lazy: lazy(() => import('@/pages/public/VendorPages'), (m) => m.VendorsPage) },
       { path: 'vendors/:slug', lazy: lazy(() => import('@/pages/public/VendorPages'), (m) => m.VendorProfilePage) },
       { path: 'directory', lazy: lazy(() => import('@/pages/public/VendorPages'), (m) => m.DirectoryPage) },
+      ...(['about', 'how-it-works', 'referral', 'privacy', 'terms', 'refund-policy'] as const).map((k) => ({ path: k, lazy: content((m) => () => <m.CmsPageView key={k} pageKey={k} />) })),
+      { path: 'contact', lazy: content((m) => m.ContactPage) },
+      { path: 'blog', lazy: content((m) => m.BlogPage) },
+      { path: 'blog/:slug', lazy: content((m) => m.PostPage) },
       ...(import.meta.env.DEV ? [{ path: 'dev/outbox', lazy: lazy(() => import('@/pages/DevOutboxPage'), (m) => m.DevOutboxPage) }] : []),
-      { path: '*', element: <PlannedPublicPage /> },
+      { path: '*', element: <NotFoundPage /> },
     ],
   },
   {

@@ -28,6 +28,8 @@ const sessionSchema = new Schema(
     lastUsedAt: { type: Date, default: Date.now },
     /** "Keep me signed in": persistent cookie vs browser-session cookie. */
     persistent: { type: Boolean, default: true },
+    /** Last time the password was re-entered (for money actions). */
+    reauthAt: Date,
     expiresAt: { type: Date, required: true },
     revokedAt: { type: Date, default: null },
     revokedReason: String,

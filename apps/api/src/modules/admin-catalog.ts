@@ -14,6 +14,7 @@ import {
   addImage, addProjectDocument, createListing, deleteListing, makeCover, managedView, parseListing, removeImage, removeProjectDocument, updateListing,
 } from '../services/listing-actions';
 import { uniqueSlug } from '../services/slug';
+import { notify } from '../services/notify';
 import { audit } from '../services/audit';
 
 /* ======================================================================== Categories */
@@ -177,6 +178,8 @@ router.post('/listings/:id/decision', requirePermission('catalog.approve'), asyn
     action: decision === 'approve' ? 'listing.approve' : 'listing.reject', entity: 'listing', entityId: l.id,
     summary: decision === 'approve' ? `Approved ${l.type} “${l.name}”` : `Rejected ${l.type} “${l.name}”: ${reason}`,
   });
+  const owner = await VendorModel.findById(l.vendorId, { userId: 1 }).lean();
+  await notify(owner?.userId, { event: 'account', title: decision === 'approve' ? `“${l.name}” is live` : `“${l.name}” needs changes`, body: reason ?? '', link: `/vendor/${l.type}s/${l.id}`, key: `listing:${l.id}:${decision}:${l.submittedAt?.getTime() ?? 0}` });
   res.json(await managedView(l));
 });
 

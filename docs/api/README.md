@@ -219,3 +219,23 @@ Orders are visible only once paid. Changes need `vendor.orders.manage`; bidding 
 | GET / POST | `/admin/coupons[/:id/active or assign]` | `coupons.manage` |
 | GET / POST | `/admin/epins[/:id/issue or block]`, GET `/admin/plans` | `epins.manage` |
 | POST / PUT | `/admin/plans[/:id]`, `/admin/commission-rules[/:id]`, GET/POST `/admin/finance/reconciliation`, PUT `/settings/wallet` · `/settings/earnings` | Super Admin only (`money.manage`) |
+
+## Communication, content, reports (Phase 6)
+
+| Method | Path | Access |
+|---|---|---|
+| GET | `/notifications` · `/notifications/counts`; POST `/notifications/read` | Signed in |
+| POST | `/attachments`; GET `/attachments/:id/file` | Uploader, recipient or staff |
+| GET / POST / PUT / DELETE | `/messages[/:id]` (`box=inbox\|outbox\|drafts`) | Signed in; team mail needs `messages.manage` |
+| GET / POST | `/tickets[/:id]`, `/tickets/:id/replies`, `/close` | Own tickets |
+| POST | `/contact` | Public, 5 an hour |
+| GET / POST | `/feedback/vendor/:slug` (public), `/feedback/:orderId` | Buyer |
+| GET | `/content/pages/:key` · `/posts[/:slug]` · `/testimonials` · `/ads` | Public |
+| GET | `/content/announcements` · `/content/ads/member` | Signed in |
+| GET | `/reports/:key` · `/reports/vendor/:key` · `/admin/reports/:key` (`format=json\|csv\|xlsx\|pdf`) | Own data / `reports.view` plus the module's permission |
+| GET | `/search?q=&panel=` | By role |
+| GET / POST / PATCH | `/admin/tickets[/:id]` | `tickets.manage` |
+| GET / POST | `/admin/feedback[/:id]` | `feedback.moderate` |
+| CRUD | `/admin/content/{pages,posts,testimonials,announcements,ads}` | `content.manage` |
+| GET | `/admin/stats`, `/admin/health`; POST `/admin/messaging/test` | Admin / `settings.view` / `settings.edit` |
+| POST | `/auth/reauth` | Before money actions (403 `REAUTH_REQUIRED`) |
