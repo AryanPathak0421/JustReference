@@ -47,6 +47,30 @@ async function toError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, e.code, e.message, e.fields, e.details);
 }
 
+/** The host (not our API) answered: the server is asleep or restarting. Our own errors are always JSON. */
+const asleep = (res: Response) => [502, 503, 504].includes(res.status) && !res.headers.get('content-type')?.includes('json');
+
+let onWaking: ((waking: boolean) => void) | null = null;
+export const setWakingHandler = (f: ((waking: boolean) => void) | null) => { onWaking = f; };
+let waking: Promise<boolean> | null = null;
+/** Ask the health check until the server answers (up to 90 seconds). Shared by everything that is waiting. */
+function waitForServer(): Promise<boolean> {
+  waking ??= (async () => {
+    onWaking?.(true);
+    try {
+      for (const end = Date.now() + 90_000; Date.now() < end; ) {
+        try {
+          const res = await fetch(`${BASE}/health`, { cache: 'no-store', signal: AbortSignal.timeout(60_000) });
+          if (res.ok) return true;
+        } catch { /* still starting */ }
+        await new Promise((ok) => setTimeout(ok, 2000));
+      }
+      return false;
+    } finally { onWaking?.(false); waking = null; }
+  })();
+  return waking;
+}
+
 let refreshing: Promise<AuthResponse | null> | null = null;
 
 /** Exchange the refresh cookie for a new access token. Resolves null when there is no valid session. */
@@ -67,7 +91,8 @@ export function refreshSession(): Promise<AuthResponse | null> {
           return data;
         }
         if (res && (res.status === 401 || res.status === 403)) { setAccessToken(null); return null; }
-        if (attempt >= 4) throw res ? await toError(res) : new ApiError(0, 'NETWORK', 'Can’t reach the server. Check your connection and try again.');
+        if (res && asleep(res) && attempt < 4 && (await waitForServer())) continue;
+        if (attempt >= 4 || (res && asleep(res))) throw res ? await toError(res) : new ApiError(0, 'NETWORK', 'Can’t reach the server. Check your connection and try again.');
         await new Promise((r) => setTimeout(r, 400 * 2 ** attempt)); // 0.4s, 0.8s, 1.6s, 3.2s
       }
     } finally {
@@ -81,7 +106,7 @@ export function refreshSession(): Promise<AuthResponse | null> {
 let reauth: (() => Promise<boolean>) | null = null;
 export const setReauthHandler = (f: (() => Promise<boolean>) | null) => { reauth = f; };
 
-interface Opts { query?: Query; body?: unknown; form?: FormData; csrf?: boolean; signal?: AbortSignal; noReauth?: boolean }
+interface Opts { query?: Query; body?: unknown; form?: FormData; csrf?: boolean; signal?: AbortSignal; noReauth?: boolean; woke?: boolean }
 
 async function send(method: string, path: string, opts: Opts = {}, retried = false): Promise<Response> {
   const headers: Record<string, string> = {};
@@ -98,6 +123,8 @@ async function send(method: string, path: string, opts: Opts = {}, retried = fal
     if ((e as Error).name === 'AbortError') throw e;
     throw new ApiError(0, 'NETWORK', 'Can’t reach the server. Check your connection and try again.');
   }
+  // Only requests that are safe to repeat are retried; anything that moves money is left to the person.
+  if (asleep(res) && !opts.woke && (method === 'GET' || path === '/auth/login') && (await waitForServer())) return send(method, path, { ...opts, woke: true }, retried);
   if (res.status === 401 && !retried && !path.startsWith('/auth/')) {
     const err = await toError(res.clone());
     if (err.code === 'TOKEN_EXPIRED' || err.code === 'UNAUTHORIZED') {

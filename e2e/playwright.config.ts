@@ -8,6 +8,7 @@ import { defineConfig } from '@playwright/test';
  */
 export default defineConfig({
   testDir: '.',
+  globalSetup: './global-setup.ts',
   outputDir: './test-results',
   timeout: 45_000,
   expect: { timeout: 10_000 },
@@ -20,7 +21,7 @@ export default defineConfig({
     viewport: { width: 1280, height: 800 },
     trace: 'retain-on-failure',
   },
-  webServer: {
+  webServer: process.env.E2E_BASE_URL ? undefined : {
     command: 'npm run dev',
     url: 'http://localhost:5173',
     reuseExistingServer: true,

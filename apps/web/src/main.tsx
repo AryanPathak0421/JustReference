@@ -6,10 +6,12 @@ import { Toaster } from 'sonner';
 import { router } from './router';
 import { queryClient } from './lib/queryClient';
 import { AuthProvider } from './features/auth/AuthProvider';
+import { WakingNotice } from './lib/WakingNotice';
 import './styles/index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <WakingNotice />
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <RouterProvider router={router} />
