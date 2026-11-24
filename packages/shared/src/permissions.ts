@@ -22,6 +22,14 @@ export const PERMISSIONS = [
   { key: 'orders.refund', group: 'Orders', label: 'Issue refunds' },
   { key: 'bids.view', group: 'Bidding', label: 'View project requests and bids' },
   { key: 'bids.moderate', group: 'Bidding', label: 'Approve, reject and close project requests' },
+  { key: 'wallet.view', group: 'Finance', label: 'View balances, transactions and withdrawals' },
+  { key: 'wallet.payout', group: 'Finance', label: 'Approve, reject and mark withdrawals as paid' },
+  { key: 'commissions.view', group: 'Finance', label: 'View commissions and referral income' },
+  { key: 'commissions.pay', group: 'Finance', label: 'Pay commissions' },
+  { key: 'rewards.manage', group: 'Finance', label: 'Pay rewards' },
+  { key: 'coupons.manage', group: 'Finance', label: 'Create, assign and switch coupons' },
+  { key: 'epins.manage', group: 'Finance', label: 'Generate, issue and search E-PINs' },
+  { key: 'tds.view', group: 'Finance', label: 'View TDS records' },
   { key: 'settings.view', group: 'Settings', label: 'View website settings' },
   { key: 'settings.edit', group: 'Settings', label: 'Change website settings' },
   { key: 'maintenance.manage', group: 'Settings', label: 'Turn maintenance mode on or off' },
@@ -49,7 +57,7 @@ export type RoleScope = (typeof ROLE_SCOPES)[number];
  * Abilities only the Super Admin has. They are never assignable through roles,
  * so an admin can never grant themselves control over administrators.
  */
-export const SUPER_ADMIN_ABILITIES = ['admins.manage', 'roles.manage'] as const;
+export const SUPER_ADMIN_ABILITIES = ['admins.manage', 'roles.manage', 'money.manage'] as const;
 
 /** Key of the seeded system role that grants every assignable admin permission. */
 export const FULL_ADMIN_ROLE_KEY = 'admin_full';

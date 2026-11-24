@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { Types } from 'mongoose';
 import { z } from 'zod';
 import {
-  cancellationDecisionSchema, cancelSchema, cartItemSchema, cartUpdateSchema, checkoutSchema, LISTING_TYPES, ORDER_STATUSES, orderTransitionSchema, refundSchema, sandboxOutcomeSchema,
+  applyCouponSchema, pinSchema, cancellationDecisionSchema, cancelSchema, cartItemSchema, cartUpdateSchema, checkoutSchema, LISTING_TYPES, ORDER_STATUSES, orderTransitionSchema, refundSchema, sandboxOutcomeSchema,
   type CustomerRow,
 } from '@jr/shared';
 import { authenticate, requirePermission, requireRole } from '../middleware/auth';
@@ -18,10 +18,11 @@ import { VISIBLE } from '../services/catalog';
 import { getSettings } from '../services/settings';
 import { activeGateway, gatewayByName, sandboxSign, type GatewayEvent } from '../services/gateway';
 import {
-  applyGatewayEvent, buildCart, buyerCancel, checkout, decideCancellation, dismissRefundRequest, orderStats, payOrder, refundOrder, sellerCancel, toOrderDetail, toPaymentView, toRows, transition,
+  applyGatewayEvent, buildCart, buyerCancel, checkout, decideCancellation, dismissRefundRequest, orderStats, payFromWallet, payOrder, refundOrder, sellerCancel, toOrderDetail, toPaymentView, toRows, transition,
   type Actor, type Viewer,
 } from '../services/orders';
 import { gstSummary, invoicePdf, toInvoiceRow } from '../services/invoices';
+import { checkPin } from '../services/finance';
 import { audit } from '../services/audit';
 
 const me = (req: Request) => new Types.ObjectId(req.auth!.user.id);
@@ -136,6 +137,30 @@ buyerRouter.patch('/cart/items/:itemId', ...buyer, async (req, res) => {
 buyerRouter.delete('/cart/items/:itemId', ...buyer, async (req, res) => {
   await CartModel.updateOne({ userId: me(req) }, { $pull: { items: { _id: assertObjectId(req.params.itemId, 'Cart item') } } });
   res.json(await buildCart(me(req)));
+});
+
+buyerRouter.put('/cart/coupon', ...buyer, async (req, res) => {
+  const { code } = parse(applyCouponSchema, req.body);
+  await CartModel.updateOne({ userId: me(req) }, { couponCode: code }, { upsert: true });
+  const cart = await buildCart(me(req));
+  if (cart.coupon?.problem) {
+    await CartModel.updateOne({ userId: me(req) }, { $unset: { couponCode: 1 } });
+    throw badRequest(cart.coupon.problem, { code: cart.coupon.problem });
+  }
+  res.json(cart);
+});
+buyerRouter.delete('/cart/coupon', ...buyer, async (req, res) => {
+  await CartModel.updateOne({ userId: me(req) }, { $unset: { couponCode: 1 } });
+  res.json(await buildCart(me(req)));
+});
+
+buyerRouter.post('/payments/:id/wallet', ...buyer, async (req, res) => {
+  const { pin } = parse(pinSchema, req.body);
+  const p = await myPayment(req);
+  await checkPin(me(req), pin);
+  const paid = await payFromWallet(p._id);
+  await audit(req, { action: 'wallet.pay', entity: 'payment', entityId: paid.id, summary: `Paid ${paid.paymentNo} from the wallet` });
+  res.json(toPaymentView(paid as never));
 });
 
 buyerRouter.post('/checkout', ...buyer, async (req, res) => {

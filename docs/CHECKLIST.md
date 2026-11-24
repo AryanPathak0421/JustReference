@@ -191,15 +191,37 @@ Legend
 1. The gateway webhook asked for a login: `/payments/:id/sandbox` also matched `/payments/webhook/sandbox`. The simulator route was renamed.
 
 ## Phase 5: Money
-| Item | Status |
-|---|---|
-| Wallet + immutable ledger, top-up, transfer, wallet password | ⬜ |
-| Withdrawals / payouts / bank transfer requests | ⬜ |
-| Configurable commission rules engine + reversal on refund | ⬜ (needs business values, see ARCHITECTURE §9) |
-| TDS records and report | ⬜ (needs rate decision) |
-| Coupons (create/assign/limits/expiry), rewards, bonus | ⬜ |
-| E-PINs (generate/issue/fresh/used/search) and subscription plans | ⬜ (needs E-PIN rules) |
-| Daily ledger reconciliation job | ⬜ |
+
+Everything that moves money is **off by default**; a Super Admin sets the values in *Commission & money rules*.
+
+| Item | Status | Notes / how it was tested |
+|---|---|---|
+| Wallets (main + earnings) with an append-only ledger, transaction IDs, idempotent requests, no overdraft under concurrency; sandbox money kept in separate wallets | ✅ | API tests + Playwright |
+| Top-up, member transfer (recipient check), earnings → main, pay orders/subscriptions from the wallet, refunds back to the wallet | ✅ sandbox only | API tests + Playwright |
+| Wallet password (the transaction PIN), locked for 15 minutes after five wrong tries | ✅ | API tests + Playwright |
+| Withdrawals: earnings only, bank + KYC check, approve / reject / paid with a unique UTR, nobody can process their own | ✅ | API tests; screens load in Playwright |
+| Commission rules: levels, percent/flat, listing types, basis, cap, dates, versions; inactive until activated; no overlaps | ✅ | API tests + Playwright (create) |
+| Commissions on completed sales only, waiting period, manual payment, TDS, proportional reversal on refund | ✅ | API tests |
+| Vendor settlement less platform fee, with reversal on refund | ✅ | API tests |
+| TDS records and lists (member, admin) | ✅ | API tests; screens load in Playwright |
+| Coupons: percent/flat, limits, expiry, assigned members, platform- or vendor-funded, applied in the cart before GST | ✅ | API tests + Playwright |
+| Cash and other rewards | ✅ | API tests + Playwright |
+| Subscription plans, purchase, E-PINs (generate, issue, fresh/used/search, block, redeem; members buying from the wallet) | ✅ | API tests + Playwright |
+| Member business/earnings/account reports, vendor earnings, CSV export of transactions | ✅ | API tests; screens load in Playwright |
+| Daily ledger reconciliation + run now | ✅ | API tests + Playwright |
+| Dashboards: wallet, earnings, transactions and withdrawals are real | ✅ | Loaded in Playwright |
+| All money screens at 375 px | ✅ | Playwright |
+
+**Not done in Phase 5, and why:**
+- **Live gateway and automatic bank payouts:** need a provider. Admins transfer by hand and record the UTR.
+- **Investment income:** undefined in the brief and possibly regulated (SEBI/RBI/BUDS Act). The page says so.
+- **Commissions on sign-ups, subscriptions or E-PINs:** deliberately not built; income from recruiting can be illegal (see ARCHITECTURE §9).
+- **What a subscription unlocks:** not decided; benefits are text only. No GST invoice is issued for subscriptions.
+- **PDF/Excel exports:** Phase 6 reports. Transactions export as CSV today.
+
+**To confirm with a CA / lawyer before switching on:** TDS sections, rates, threshold treatment and reversals; GST/TCS on marketplace settlements; platform-funded coupons; RBI rules for wallets with transfers; direct-selling rules for multi-level commissions.
+
+**Assumptions to confirm:** several levels pay from one sale up to the sale amount; a blocked member's share is not passed up; a coupon is freed only if the order was never paid; an E-PIN can be used by whoever holds the code; a new subscription starts when the current one ends.
 
 ## Phase 6: Communication, reports, hardening
 | Item | Status |

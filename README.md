@@ -6,7 +6,7 @@ Marketplace (products, services, projects), referral management, wallet and vend
 - **Feature status (what's built / tested / pending):** [docs/CHECKLIST.md](docs/CHECKLIST.md)
 - **API reference:** [docs/api/README.md](docs/api/README.md)
 
-## Current status: Phases 1–4 complete (payments in sandbox only)
+## Current status: Phases 1–5 complete (payments in sandbox only)
 
 Working against a real API and database:
 - **Accounts (Phase 1):**
@@ -30,8 +30,12 @@ Working against a real API and database:
   - Cart, checkout, orders for buyers, vendors and admins, cancellations, refunds and GST invoices.
   - Project requests and bidding.
   - Payments through a simulated gateway; a real one still has to be connected.
+- **Money (Phase 5):**
+  - Wallets on an append-only ledger, transfers, withdrawals, commissions, vendor settlement and TDS records.
+  - Coupons, rewards, subscription plans and E-PINs.
+  - Everything that moves money is off until a Super Admin sets the rules.
 
-Still on sample data: dashboard metrics for earnings and wallet (Phase 5), plus homepage testimonials and blog (Phase 6). Every such screen shows a **Sample data** badge. Sample vendors and listings in the database are flagged `isSample` and tagged "Sample" in the UI.
+Still on sample data: some admin and Super Admin dashboard figures, notifications and announcements, plus homepage testimonials and blog (Phase 6). Every such screen shows a **Sample data** badge. Sample vendors and listings in the database are flagged `isSample` and tagged "Sample" in the UI.
 
 ## Getting started
 

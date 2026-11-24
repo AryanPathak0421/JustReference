@@ -19,7 +19,7 @@ router.get('/:group', requirePermission('settings.view'), async (req, res) => {
 
 router.put('/:group', async (req, res) => {
   const group: SettingsGroup = parse(groupParam, req.params.group);
-  const needed = group === 'maintenance' ? 'maintenance.manage' : 'settings.edit';
+  const needed = group === 'maintenance' ? 'maintenance.manage' : group === 'wallet' || group === 'earnings' ? 'money.manage' : 'settings.edit';
   if (!req.auth!.permissions.has(needed)) throw forbidden('You don’t have permission to change these settings', 'FORBIDDEN', { missing: [needed] });
 
   const value = parse(SETTINGS_SCHEMAS[group], req.body);

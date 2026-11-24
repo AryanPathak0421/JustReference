@@ -6,4 +6,5 @@ export * from './admin';
 export * from './catalog';
 export * from './members';
 export * from './commerce';
+export * from './finance';
 export type * from './api-types';

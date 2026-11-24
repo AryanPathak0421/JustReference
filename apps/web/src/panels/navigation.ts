@@ -88,7 +88,7 @@ const member: PanelConfig = {
       items: [
         {
           label: 'Earnings', icon: TrendingUp, to: `${m}/earnings`, phase: 5,
-          children: [leaf('My business', `${m}/earnings/my-business`, 5), leaf('Referral business', `${m}/earnings/referral-business`, 5), leaf('Search business', `${m}/earnings/search`, 5), leaf('Total business', `${m}/earnings/total`, 5)],
+          children: [leaf('My business', `${m}/earnings/my-business`, 5), leaf('Referral business', `${m}/earnings/referral-business`, 5), leaf('Search business', `${m}/earnings/search`, 5), leaf('Total business', `${m}/earnings/total`, 5), leaf('Commissions', `${m}/earnings/commissions`, 5)],
         },
         {
           label: 'My referrals', icon: Users, to: `${m}/referrals`, phase: 3,
@@ -171,9 +171,13 @@ const vendor: PanelConfig = {
     {
       label: 'Money',
       items: [
-        { label: 'Wallet', icon: Wallet, to: `${v}/wallet`, phase: 5 },
+        {
+          label: 'Wallet', icon: Wallet, to: `${v}/wallet`, phase: 5,
+          children: [leaf('Overview', `${v}/wallet`, 5), leaf('Request payout', `${v}/wallet/withdraw`, 5), leaf('Transactions', `${v}/wallet/transactions`, 5), leaf('Wallet password', `${v}/wallet/password`, 5)],
+        },
         { label: 'Payout requests', icon: Banknote, to: `${v}/payouts`, phase: 5 },
         { label: 'Earnings report', icon: BarChart3, to: `${v}/earnings`, phase: 5 },
+        { label: 'Referral commissions', icon: HandCoins, to: `${v}/earnings/commissions`, phase: 5 },
         { label: 'Account reports', icon: BookOpen, to: `${v}/reports`, phase: 6 },
         {
           label: 'Referrals', icon: GitBranch, to: `${v}/referrals`, phase: 3,
@@ -244,21 +248,23 @@ const admin: PanelConfig = {
         { label: 'Orders', icon: ReceiptIndianRupee, to: `${a}/orders`, phase: 4, perm: 'orders.view' },
         { label: 'Invoice search', icon: FileText, to: `${a}/invoices`, phase: 4, perm: 'orders.view' },
         {
-          label: 'Commissions', icon: HandCoins, to: `${a}/commissions`, phase: 5,
-          children: [leaf('Pay commissions', `${a}/commissions/pay`, 5), leaf('Referral income', `${a}/commissions/referral-income`, 5), leaf('Investment income', `${a}/commissions/investment-income`, 5)],
+          label: 'Commissions', icon: HandCoins, to: `${a}/commissions`, phase: 5, perm: 'commissions.view',
+          children: [leaf('Pay commissions', `${a}/commissions/pay`, 5, 'commissions.view'), leaf('Referral income', `${a}/commissions/referral-income`, 5, 'commissions.view'), leaf('Investment income', `${a}/commissions/investment-income`, 5)],
         },
         {
-          label: 'Balances & withdrawals', icon: Landmark, to: `${a}/withdrawals`, phase: 5,
-          children: [leaf('Member account balance', `${a}/withdrawals/balances`, 5), leaf('Withdrawn balance', `${a}/withdrawals/withdrawn`, 5), leaf('Withdrawn list', `${a}/withdrawals/list`, 5), leaf('Bank transfer requests', `${a}/withdrawals/bank-transfers`, 5)],
+          label: 'Balances & withdrawals', icon: Landmark, to: `${a}/withdrawals`, phase: 5, perm: 'wallet.view',
+          children: [leaf('Member account balance', `${a}/withdrawals/balances`, 5, 'wallet.view'), leaf('Withdrawn balance', `${a}/withdrawals/withdrawn`, 5, 'wallet.view'), leaf('Withdrawn list', `${a}/withdrawals/list`, 5, 'wallet.view'), leaf('Bank transfer requests', `${a}/withdrawals/bank-transfers`, 5, 'wallet.view')],
         },
         {
-          label: 'Rewards', icon: Award, to: `${a}/rewards`, phase: 5,
-          children: [leaf('Pay rewards', `${a}/rewards/pay`, 5), leaf('Rewards list', `${a}/rewards/list`, 5)],
+          label: 'Rewards', icon: Award, to: `${a}/rewards`, phase: 5, perm: 'rewards.manage',
+          children: [leaf('Pay rewards', `${a}/rewards/pay`, 5, 'rewards.manage'), leaf('Rewards list', `${a}/rewards/list`, 5, 'rewards.manage')],
         },
-        { label: 'TDS list', icon: Percent, to: `${a}/tds`, phase: 5 },
+        { label: 'Transactions', icon: Wallet, to: `${a}/transactions`, phase: 5, perm: 'wallet.view' },
+        { label: 'Coupons', icon: TicketPercent, to: `${a}/coupons`, phase: 5, perm: 'coupons.manage' },
+        { label: 'TDS list', icon: Percent, to: `${a}/tds`, phase: 5, perm: 'tds.view' },
         {
-          label: 'E-PINs', icon: KeyRound, to: `${a}/epins`, phase: 5,
-          children: [leaf('Generate / issue E-PIN', `${a}/epins/generate`, 5), leaf('Fresh E-PINs', `${a}/epins/fresh`, 5), leaf('Used E-PINs', `${a}/epins/used`, 5), leaf('Search E-PIN', `${a}/epins/search`, 5)],
+          label: 'E-PINs', icon: KeyRound, to: `${a}/epins`, phase: 5, perm: 'epins.manage',
+          children: [leaf('Generate / issue E-PIN', `${a}/epins/generate`, 5, 'epins.manage'), leaf('Fresh E-PINs', `${a}/epins/fresh`, 5, 'epins.manage'), leaf('Used E-PINs', `${a}/epins/used`, 5, 'epins.manage'), leaf('Search E-PIN', `${a}/epins/search`, 5, 'epins.manage')],
         },
       ],
     },
@@ -318,10 +324,11 @@ const superAdmin: PanelConfig = {
     {
       label: 'Monetisation',
       items: [
-        { label: 'Commission rules', icon: GitBranch, to: `${s}/commission-rules`, phase: 5 },
+        { label: 'Commission & money rules', icon: GitBranch, to: `${s}/commission-rules`, phase: 5 },
         { label: 'Subscriptions', icon: Crown, to: `${s}/subscriptions`, phase: 5 },
         { label: 'E-PINs', icon: KeyRound, to: `${s}/epins`, phase: 5 },
-        { label: 'Coupons & rewards', icon: TicketPercent, to: `${s}/coupons`, phase: 5 },
+        { label: 'Coupons', icon: TicketPercent, to: `${s}/coupons`, phase: 5 },
+        { label: 'Rewards', icon: Award, to: `${s}/rewards`, phase: 5 },
       ],
     },
     {

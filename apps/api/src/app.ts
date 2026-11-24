@@ -23,6 +23,7 @@ import publicCatalogRouter, { mediaRouter } from './modules/public-catalog';
 import { authenticate, requireRole } from './middleware/auth';
 import adminMemberExtrasRouter from './modules/admin-member-extras';
 import { adminCommerceRouter, buyerRouter, vendorCommerceRouter } from './modules/commerce';
+import { adminFinanceRouter, financeRouter } from './modules/finance';
 import { adminBiddingRouter, projectRequestsRouter, vendorBiddingRouter } from './modules/bidding';
 
 export function createApp() {
@@ -87,6 +88,7 @@ export function createApp() {
   v1.use('/categories', categoriesPublicRouter);
   v1.use('/vendor', vendorRouter, vendorCommerceRouter, vendorBiddingRouter);
   v1.use('/project-requests', projectRequestsRouter);
+  v1.use('/finance', financeRouter);
   v1.use('/admin/members', adminMemberExtrasRouter, membersRouter);
   const admin = Router();
   admin.use(authenticate, requireRole('admin', 'super_admin'));
@@ -94,6 +96,7 @@ export function createApp() {
   admin.use(adminVendorsRouter);
   admin.use(adminCommerceRouter);
   admin.use(adminBiddingRouter);
+  admin.use(adminFinanceRouter);
   v1.use('/admin', admin);
   v1.use('/settings', settingsRouter);
   v1.use('/audit', auditRouter);

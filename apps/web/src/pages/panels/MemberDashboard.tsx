@@ -3,29 +3,30 @@ import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Cake, Copy, IdCard, Link2, Megaphone, MessageCircle, Plus, Share2, ShoppingBag, TrendingUp, Users, Wallet } from 'lucide-react';
 import { formatINR } from '@jr/shared/money';
-import { Button, ButtonLink, Card, CardHeader, DataTable, ErrorState, IconTile, PageHeader, SampleDataBadge, Skeleton, StatusBadge, type Column } from '@/design-system';
-import { fetchMemberDashboard, type MemberDashboard as MD } from '@/features/dashboard/api';
+import { Button, ButtonLink, Card, CardHeader, DataTable, ErrorState, IconTile, PageHeader, SampleDataBadge, Skeleton, type Column } from '@/design-system';
+import { fetchMemberDashboard } from '@/features/dashboard/api';
 import { MoneyTrendCard } from '@/features/dashboard/charts';
 import { fmtDate, MiniStats, StatGrid } from '@/features/dashboard/widgets';
 import { useAsync } from '@/lib/useAsync';
+import type { LedgerRow } from '@jr/shared';
+import { getTransactions, mySubscriptions, useEarnings, useWallet } from '@/features/finance/api';
 import { orderStats } from '@/features/commerce/api';
 import { getMyProfile, getReferralSummary } from '@/features/members/api';
 import { BirthdaysList, CompletionMeter } from '@/features/members/components';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { cn } from '@/lib/cn';
 
-type Txn = MD['transactions'][number];
+type Txn = LedgerRow;
 
 const TXN_COLUMNS: Column<Txn>[] = [
-  { key: 'id', header: 'Transaction ID', cell: (r) => <span className="font-mono text-[12.5px]">{r.id}</span>, value: (r) => r.id },
+  { key: 'id', header: 'Transaction ID', cell: (r) => <span className="font-mono text-[12.5px]">{r.txnId}</span>, value: (r) => r.txnId },
   { key: 'description', header: 'Description', cell: (r) => <b className="font-semibold text-ink">{r.description}</b>, value: (r) => r.description },
   { key: 'type', header: 'Type', cell: (r) => (r.direction === 'credit' ? 'Credit' : 'Debit'), value: (r) => r.direction },
   {
     key: 'amount', header: 'Amount', align: 'right', value: (r) => (r.direction === 'credit' ? r.amountPaise : -r.amountPaise),
     cell: (r) => <span className={cn('font-bold', r.direction === 'credit' ? 'text-success' : 'text-ink')}>{r.direction === 'credit' ? '+' : '−'}{formatINR(r.amountPaise)}</span>,
   },
-  { key: 'status', header: 'Status', cell: (r) => <StatusBadge status={r.status} />, value: (r) => r.status },
-  { key: 'date', header: 'Date', cell: (r) => <span className="whitespace-nowrap">{fmtDate(r.date)}</span>, value: (r) => r.date },
+  { key: 'date', header: 'Date', cell: (r) => <span className="whitespace-nowrap">{fmtDate(r.createdAt)}</span>, value: (r) => r.createdAt },
 ];
 
 function greeting() {
@@ -73,10 +74,13 @@ export function MemberDashboard() {
   const profile = useQuery({ queryKey: ['me', 'profile'], queryFn: getMyProfile });
   const orders = useQuery({ queryKey: ['orders', 'member', 'stats'], queryFn: () => orderStats('member') });
   const o = orders.data;
+  const wallet = useWallet();
+  const earn = useEarnings();
+  const txns = useQuery({ queryKey: ['finance', 'recent'], queryFn: () => getTransactions({ pageSize: 5 }) });
+  const subs = useQuery({ queryKey: ['finance', 'subscriptions'], queryFn: mySubscriptions });
   const r = summary.data;
 
   if (error) return <Card><ErrorState onRetry={reload} /></Card>;
-  const s = data?.stats;
 
   return (
     <div className="grid grid-cols-1 gap-5 animate-fade-in">
@@ -85,7 +89,7 @@ export function MemberDashboard() {
         breadcrumbs={[{ label: 'Member', to: '/member' }, { label: 'Dashboard' }]}
         title="Dashboard"
         description="Here’s what’s happening with your account today."
-        actions={<><SampleDataBadge label="Wallet, earnings, chart & notifications are sample data" /><ButtonLink to="/member/purchases/new" size="sm" leftIcon={<Plus className="size-4" />}>New purchase</ButtonLink></>}
+        actions={<><SampleDataBadge label="Notifications & announcements are sample data" /><ButtonLink to="/member/purchases/new" size="sm" leftIcon={<Plus className="size-4" />}>New purchase</ButtonLink></>}
       />
 
       <section className="relative flex flex-wrap items-center justify-between gap-5 overflow-hidden rounded-card bg-[linear-gradient(120deg,var(--color-navy-900),var(--color-navy-700)_55%,#3b3fb8)] p-6 text-white">
@@ -107,8 +111,8 @@ export function MemberDashboard() {
       <StatGrid
         loading={loading || summary.isLoading}
         stats={[
-          { label: 'Wallet balance', value: s ? formatINR(s.walletPaise) : '', icon: Wallet, tone: 'blue', note: 'Available to use or withdraw' },
-          { label: 'Total earnings', value: s ? formatINR(s.earningsPaise) : '', icon: TrendingUp, tone: 'green', delta: s ? `+${s.earningsDeltaPct}%` : undefined, note: 'vs last month' },
+          { label: 'Wallet balance', value: wallet.data ? formatINR(wallet.data.mainPaise) : '', icon: Wallet, tone: 'blue', note: wallet.data ? `${formatINR(wallet.data.earningsPaise)} in earnings${wallet.data.testMode ? ' · test money' : ''}` : '' },
+          { label: 'Total earnings', value: earn.data ? formatINR(earn.data.paidPaise) : '', icon: TrendingUp, tone: 'green', note: earn.data ? `${formatINR(earn.data.pendingPaise)} waiting` : '' },
           { label: 'Total referrals', value: r ? String(r.total) : '', icon: Users, tone: 'violet', note: r ? `${r.direct} direct · ${r.indirect} indirect` : '' },
           { label: 'Total purchases', value: o ? formatINR(o.valuePaise) : '', icon: ShoppingBag, tone: 'amber', note: 'Paid, less refunds' },
         ]}
@@ -122,12 +126,12 @@ export function MemberDashboard() {
           { label: 'Completed projects', value: String(o?.completedProjects ?? ''), to: '/member/projects/completed' },
           { label: 'Direct referrals', value: String(r?.direct ?? ''), to: '/member/referrals/direct' },
           { label: 'Indirect referrals', value: String(r?.indirect ?? ''), to: '/member/referrals/indirect' },
-          { label: 'Subscription', value: '—', to: '/member/epin/plans' },
+          { label: 'Subscription', value: subs.data?.data.find((x) => x.status === 'active')?.plan ?? 'None', to: '/member/epin/plans' },
         ]}
       />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.65fr_1fr]">
-        <MoneyTrendCard title="Earnings overview" data={data?.chart} loading={loading} names={{ a: 'Referral earnings', b: 'Purchases' }} />
+        <MoneyTrendCard title="Earnings overview" data={earn.data && o ? earn.data.months.map((x, i) => ({ month: x.month, a: x.valuePaise, b: o.months[i]?.valuePaise ?? 0 })) : undefined} loading={earn.isLoading || orders.isLoading} names={{ a: 'Earnings', b: 'Purchases' }} />
 
         <Card className="p-5">
           <CardHeader title="Notifications" description="Latest activity" actions={<Link to="/member/notifications" className="text-[13px] font-semibold text-brand-600 hover:underline">View all</Link>} />
@@ -176,11 +180,11 @@ export function MemberDashboard() {
         <Card className="p-5">
           <CardHeader title="Recent transactions" description="From your wallet ledger" actions={<Link to="/member/wallet/transactions" className="text-[13px] font-semibold text-brand-600 hover:underline">Full report</Link>} />
           <DataTable
-            rows={data?.transactions ?? []}
+            rows={txns.data?.data ?? []}
             columns={TXN_COLUMNS}
             rowKey={(r) => r.id}
-            loading={loading}
-            searchText={(r) => `${r.id} ${r.description}`}
+            loading={txns.isLoading}
+            searchText={(r) => `${r.txnId} ${r.description}`}
             searchPlaceholder="Search transactions…"
             pageSize={5}
             exportName="transactions"

@@ -116,12 +116,13 @@ export type CommerceSettings = z.output<typeof commerceSettingsSchema>;
 export interface CartLine {
   id: string; listingId: string; type: (typeof LISTING_TYPES)[number]; name: string; slug: string; image: string | null;
   qty: number; plan: PaymentPlan; note: string; unitPricePaise: number; gstRatePct: number;
-  taxablePaise: number; gstPaise: number; totalPaise: number; dueNowPaise: number;
+  discountPaise: number; taxablePaise: number; gstPaise: number; totalPaise: number; dueNowPaise: number;
   allowFull: boolean; allowAdvance: boolean; problem: string | null; isSample: boolean;
 }
 export interface CartGroup { vendor: { id: string; name: string; slug: string; gstRegistered: boolean }; lines: CartLine[]; totalPaise: number }
 export interface CartView {
   groups: CartGroup[]; count: number; subtotalPaise: number; gstPaise: number; totalPaise: number; dueNowPaise: number;
+  coupon: { code: string; discountPaise: number; problem: string | null } | null; discountPaise: number;
   canCheckout: boolean; paymentsEnabled: boolean; testMode: boolean;
 }
 
@@ -137,7 +138,7 @@ export interface OrderDetail extends OrderRow {
     name: string; type: string; slug: string | null; qty: number; unitPricePaise: number; gstRatePct: number;
     taxablePaise: number; gstPaise: number; totalPaise: number; note: string;
   }[];
-  subtotalPaise: number; gstPaise: number; advancePaise: number; plan: PaymentPlan; dueNowPaise: number;
+  subtotalPaise: number; discountPaise: number; couponCode: string | null; gstPaise: number; advancePaise: number; plan: PaymentPlan; dueNowPaise: number;
   address: Address | null;
   history: { status: string; at: string; by: string; note: string }[];
   tracking: { carrier: string; number: string; url: string } | null;
@@ -152,7 +153,7 @@ export interface OrderDetail extends OrderRow {
   expiresAt: string | null;
 }
 export interface PaymentView {
-  id: string; paymentNo: string; provider: string; status: string; amountPaise: number; testMode: boolean; createdAt: string;
+  id: string; paymentNo: string; provider: string; purpose: 'order' | 'topup' | 'subscription'; status: string; amountPaise: number; testMode: boolean; createdAt: string;
   orders: { id: string; orderNo: string; amountPaise: number }[];
 }
 export interface InvoiceRow {

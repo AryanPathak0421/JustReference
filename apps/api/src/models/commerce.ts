@@ -6,6 +6,7 @@ const oid = Schema.Types.ObjectId;
 const cartSchema = new Schema(
   {
     userId: { type: oid, ref: 'User', required: true },
+    couponCode: String,
     items: [{ listingId: { type: oid, ref: 'Listing', required: true }, qty: { type: Number, required: true }, plan: { type: String, enum: PAYMENT_PLANS, default: 'full' }, note: String }],
   },
   { timestamps: true },
@@ -25,9 +26,15 @@ const orderSchema = new Schema(
     items: [{
       _id: false, listingId: { type: oid, ref: 'Listing' }, name: { type: String, required: true }, type: { type: String, required: true }, slug: String,
       qty: { type: Number, required: true }, unitPricePaise: { type: Number, required: true }, gstRatePct: { type: Number, required: true },
-      taxablePaise: { type: Number, required: true }, gstPaise: { type: Number, required: true }, totalPaise: { type: Number, required: true }, note: String, stockReserved: { type: Boolean, default: false },
+      discountPaise: { type: Number, default: 0 }, taxablePaise: { type: Number, required: true }, gstPaise: { type: Number, required: true }, totalPaise: { type: Number, required: true }, note: String, stockReserved: { type: Boolean, default: false },
     }],
+    /** Taxable value, after any coupon discount. */
     subtotalPaise: { type: Number, required: true },
+    discountPaise: { type: Number, default: 0 },
+    couponCode: String,
+    couponFundedBy: { type: String, enum: ['platform', 'vendor'] },
+    commissionsDone: { type: Boolean, default: false },
+    settled: { type: Boolean, default: false },
     gstPaise: { type: Number, required: true },
     totalPaise: { type: Number, required: true, min: 1 },
     plan: { type: String, enum: PAYMENT_PLANS, default: 'full' },
@@ -59,6 +66,8 @@ orderSchema.index({ buyerUserId: 1, createdAt: -1 });
 orderSchema.index({ vendorId: 1, status: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ status: 1, expiresAt: 1 });
+orderSchema.index({ status: 1, commissionsDone: 1 });
+orderSchema.index({ status: 1, settled: 1, completedAt: 1 });
 export type Order = InferSchemaType<typeof orderSchema>;
 export type OrderDoc = HydratedDocument<Order>;
 export const OrderModel = model('Order', orderSchema);
@@ -70,6 +79,8 @@ const paymentSchema = new Schema(
     idempotencyKey: { type: String, required: true },
     allocations: [{ _id: false, orderId: { type: oid, ref: 'Order', required: true }, orderNo: String, amountPaise: { type: Number, required: true } }],
     amountPaise: { type: Number, required: true, min: 1 },
+    purpose: { type: String, enum: ['order', 'topup', 'subscription'], default: 'order' },
+    planId: { type: oid, ref: 'SubscriptionPlan' },
     provider: { type: String, required: true },
     providerOrderId: String,
     providerPaymentId: String,

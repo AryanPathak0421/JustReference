@@ -58,12 +58,14 @@ otpSchema.index({ target: 1, purpose: 1 }, { unique: true });
 otpSchema.index({ lastSentAt: 1 }, { expireAfterSeconds: 3600 });
 export const OtpModel = model('Otp', otpSchema);
 
-/* ---------------- Security codes (transaction PIN; wallet password arrives in Phase 5) */
+/* ---------------- Security codes (the transaction PIN is the wallet password) */
 const securityCodeSchema = new Schema(
   {
     userId: { type: Types.ObjectId, ref: 'User', required: true },
     type: { type: String, enum: SECURITY_CODE_TYPES, required: true },
     hash: { type: String, required: true, select: false },
+    failedAttempts: { type: Number, default: 0 },
+    lockedUntil: { type: Date, default: null },
   },
   { timestamps: true },
 );

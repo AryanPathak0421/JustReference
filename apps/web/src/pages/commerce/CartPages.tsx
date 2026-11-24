@@ -3,17 +3,18 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { CheckCircle2, FlaskConical, Loader2, ShoppingCart, Trash2, XCircle } from 'lucide-react';
-import type { CartLine, CartView, PaymentPlan } from '@jr/shared';
+import type { CartLine, CartView, PaymentPlan, PaymentView } from '@jr/shared';
 import { formatINR } from '@jr/shared/money';
-import { Alert, Badge, Button, ButtonLink, Card, CardHeader, EmptyState, ErrorState, Input, PageHeader, Select, Skeleton } from '@/design-system';
+import { Alert, Badge, Button, ButtonLink, Card, CardHeader, EmptyState, ErrorState, Field, Input, PageHeader, Select, Skeleton } from '@/design-system';
 import { SampleTag } from '@/features/catalog/components';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { AddressFields, Totals, useAddressForm } from '@/features/commerce/components';
 import { getPayment, lastAddress, newKey, placeOrder, removeCartItem, simulatePayment, updateCartItem, useCart } from '@/features/commerce/api';
+import { applyCoupon, payFromWallet, removeCoupon, useWallet } from '@/features/finance/api';
 import { ApiError, applyFieldErrors, errorMessage } from '@/lib/api';
 
 const crumbs = (...c: { label: string; to?: string }[]) => [{ label: 'Member', to: '/member' }, ...c];
-const summaryRows = (c: CartView): [string, number][] => [['Subtotal', c.subtotalPaise], ['GST', c.gstPaise], ...(c.dueNowPaise !== c.totalPaise ? [['Payable later', c.totalPaise - c.dueNowPaise] as [string, number]] : [])];
+const summaryRows = (c: CartView): [string, number][] => [['Subtotal', c.subtotalPaise], ...(c.discountPaise ? [[`Coupon ${c.coupon!.code}`, -c.discountPaise] as [string, number]] : []), ['GST', c.gstPaise], ...(c.dueNowPaise !== c.totalPaise ? [['Payable later', c.totalPaise - c.dueNowPaise] as [string, number]] : [])];
 
 function Notices({ cart }: { cart: CartView }) {
   return (
@@ -47,8 +48,9 @@ export function CartPage() {
               </div>
               <Card className="p-5 xl:sticky xl:top-24">
                 <CardHeader title="Summary" />
+                <CouponBox cart={cart} />
                 <Totals rows={summaryRows(cart)} total={['Pay now', cart.dueNowPaise]} />
-                {cart.canCheckout
+                {cart.canCheckout && !cart.coupon?.problem
                   ? <ButtonLink to="/member/checkout" size="lg" className="mt-5 w-full">Check out</ButtonLink>
                   : <Button size="lg" className="mt-5 w-full" disabled>Check out</Button>}
                 {cart.groups.some((g) => g.lines.some((l) => l.problem)) && <p className="mt-2 text-[13px] text-danger">Fix or remove the marked items to continue.</p>}
@@ -94,6 +96,39 @@ function Line({ line: l }: { line: CartLine }) {
       <b className="w-28 text-right">{formatINR(l.totalPaise)}</b>
       <Button variant="ghost" size="icon" aria-label={`Remove ${l.name}`} disabled={busy} onClick={() => run(() => removeCartItem(l.id))}><Trash2 className="size-4" /></Button>
     </li>
+  );
+}
+
+function CouponBox({ cart }: { cart: CartView }) {
+  const qc = useQueryClient();
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const run = async (f: () => Promise<CartView>) => { setBusy(true); try { qc.setQueryData(['cart'], await f()); setError(''); setCode(''); } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); } };
+  if (cart.coupon) return <div className="mb-4 rounded-xl bg-canvas p-3 text-[14px]"><div className="flex items-center justify-between gap-2"><b className="font-mono">{cart.coupon.code}</b><Button size="sm" variant="ghost" loading={busy} onClick={() => run(removeCoupon)}>Remove</Button></div>{cart.coupon.problem && <p className="text-[13px] text-danger">{cart.coupon.problem}</p>}</div>;
+  return (
+    <form className="mb-4 flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); if (code.trim()) void run(() => applyCoupon(code.trim())); }}>
+      <Field label="Coupon code" error={error} className="flex-1">{({ id, invalid }) => <Input id={id} className="h-10 font-mono" aria-invalid={invalid} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />}</Field>
+      <Button type="submit" variant="outline" className="h-10" loading={busy}>Apply</Button>
+    </form>
+  );
+}
+
+/** Pay an open payment from the main wallet. */
+function WalletPay({ payment, onPaid }: { payment: PaymentView; onPaid: (p: PaymentView) => void }) {
+  const { data: w } = useWallet();
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!w || w.mainPaise <= 0) return null;
+  if (w.mainPaise < payment.amountPaise) return <p className="mt-4 text-[13px] text-muted">Wallet balance {formatINR(w.mainPaise)}: not enough for this payment.</p>;
+  if (!w.pinSet) return <p className="mt-4 text-[13px] text-muted"><Link to="/member/account" className="font-semibold text-brand-600 underline">Set a wallet password</Link> to pay from your wallet ({formatINR(w.mainPaise)}).</p>;
+  const go = async (e: React.FormEvent) => { e.preventDefault(); setBusy(true); try { onPaid(await payFromWallet(payment.id, pin)); } catch (x) { setError(errorMessage(x)); } finally { setBusy(false); } };
+  return (
+    <form onSubmit={go} className="mt-6 grid gap-3 border-t border-line pt-5 text-left">
+      <Field label={`Pay from wallet (balance ${formatINR(w.mainPaise)})`} error={error}>{({ id, invalid }) => <Input id={id} type="password" inputMode="numeric" autoComplete="off" maxLength={6} placeholder="Wallet password" aria-invalid={invalid} value={pin} onChange={(e) => setPin(e.target.value)} />}</Field>
+      <Button type="submit" variant="outline" loading={busy} disabled={pin.length < 4}>Pay {formatINR(payment.amountPaise)} from wallet</Button>
+    </form>
   );
 }
 
@@ -157,6 +192,7 @@ export function CheckoutPage() {
 /* ================================================================ Payment */
 export function PaymentPage() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [busy, setBusy] = useState<string>();
   // The status always comes from the server, which only trusts the gateway's verified notification.
@@ -168,7 +204,7 @@ export function PaymentPage() {
     setBusy(o);
     try {
       qc.setQueryData(['payment', id], await simulatePayment(id, o));
-      for (const k of ['orders', 'order', 'request']) qc.invalidateQueries({ queryKey: [k] });
+      for (const k of ['orders', 'order', 'request', 'finance']) qc.invalidateQueries({ queryKey: [k] });
     } catch (e) { toast.error(errorMessage(e)); void refetch(); } finally { setBusy(undefined); }
   };
   const head = <PageHeader className="mb-0" breadcrumbs={crumbs({ label: 'Purchases', to: '/member/purchases/history' }, { label: 'Payment' })} title="Payment" />;
@@ -193,7 +229,9 @@ export function PaymentPage() {
             {p.status === 'created' && <Button variant="outline" loading={busy === 'failure'} disabled={!!busy} onClick={() => simulate('failure')}>Simulate failure</Button>}
           </div>
         )}
-        {ok && <ButtonLink to={p.orders.length === 1 ? `/member/orders/${p.orders[0]!.id}` : '/member/purchases/history'} className="mt-6">View {p.orders.length === 1 ? 'order' : 'orders'}</ButtonLink>}
+        {!ok && p.purpose !== 'topup' && <WalletPay payment={p} onPaid={(n) => { for (const k of ['orders', 'order', 'request', 'finance']) qc.invalidateQueries({ queryKey: [k] }); navigate(`/member/pay/${n.id}`, { replace: true }); }} />}
+        {ok && p.purpose !== 'order' && <ButtonLink to={p.purpose === 'topup' ? '/member/wallet' : '/member/epin/plans'} className="mt-6">{p.purpose === 'topup' ? 'Go to wallet' : 'View subscription'}</ButtonLink>}
+        {ok && p.purpose === 'order' && <ButtonLink to={p.orders.length === 1 ? `/member/orders/${p.orders[0]!.id}` : '/member/purchases/history'} className="mt-6">View {p.orders.length === 1 ? 'order' : 'orders'}</ButtonLink>}
       </Card>
     </div>
   );

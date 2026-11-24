@@ -14,6 +14,8 @@ import { publicUrl } from './storage';
 import { VISIBLE } from './catalog';
 import { activeGateway, type GatewayEvent } from './gateway';
 import { issueCreditNote, issueInvoice } from './invoices';
+import { CouponModel } from '../models/finance';
+import { activateSubscription, couponProblem, createCommissions, ensureWallets, post, redeemCoupon, releaseCoupon, reverseForRefund } from './finance';
 
 type Id = Types.ObjectId | string;
 export interface Actor { userId: Id | null; name: string }
@@ -23,8 +25,8 @@ const istYear = () => new Date(Date.now() + 5.5 * 3_600_000).getUTCFullYear();
 const hist = (status: string, actor: Actor, note = '') => ({ status, at: new Date(), byUserId: actor.userId ?? undefined, by: actor.name, note });
 
 /** GST is added on top of the listed price, and only if the seller is GST registered. */
-export function priceLine(unit: number, qty: number, rate: number, gstRegistered: boolean) {
-  const taxablePaise = unit * qty;
+export function priceLine(unit: number, qty: number, rate: number, gstRegistered: boolean, discountPaise = 0) {
+  const taxablePaise = unit * qty - discountPaise;
   const gstPaise = gstRegistered ? Math.round((taxablePaise * rate) / 100) : 0;
   return { taxablePaise, gstPaise, totalPaise: taxablePaise + gstPaise };
 }
@@ -47,8 +49,9 @@ export async function buildCart(userId: Id, session?: ClientSession): Promise<Ca
   const items = cart?.items ?? [];
   const listings = await ListingModel.find({ _id: { $in: items.map((i) => i.listingId) } }).session(session ?? null).lean();
   const vendors = await VendorModel.find({ _id: { $in: listings.map((l) => l.vendorId) } }).session(session ?? null).lean();
-  const view: CartView = { groups: [], count: items.length, subtotalPaise: 0, gstPaise: 0, totalPaise: 0, dueNowPaise: 0, canCheckout: false, paymentsEnabled: !!gw, testMode: !!gw?.testMode };
+  const view: CartView = { groups: [], coupon: null, discountPaise: 0, count: items.length, subtotalPaise: 0, gstPaise: 0, totalPaise: 0, dueNowPaise: 0, canCheckout: false, paymentsEnabled: !!gw, testMode: !!gw?.testMode };
   let problems = false;
+  const meta = new Map<string, { advance: number; price: number; reg: boolean; rate: number }>();
   for (const it of items) {
     const l = listings.find((x) => String(x._id) === String(it.listingId));
     const v = l && vendors.find((x) => String(x._id) === String(l.vendorId));
@@ -67,14 +70,49 @@ export async function buildCart(userId: Id, session?: ClientSession): Promise<Ca
     const due = plan === 'advance' ? advanceShare(l!.project!.advancePaise!, l!.pricePaise, p.totalPaise) : p.totalPaise;
     const line: CartLine = {
       id: String(it._id), listingId: String(it.listingId), type: l?.type ?? 'product', name: l?.name ?? 'Removed listing', slug: l?.slug ?? '', image: publicUrl(l?.images?.[0]?.key),
-      qty: it.qty, plan, note: it.note ?? '', unitPricePaise: l?.pricePaise ?? 0, gstRatePct: reg ? (l?.gstRatePct ?? 0) : 0, ...p, dueNowPaise: due, allowFull, allowAdvance, problem, isSample: !!l?.isSample,
+      qty: it.qty, plan, note: it.note ?? '', unitPricePaise: l?.pricePaise ?? 0, gstRatePct: reg ? (l?.gstRatePct ?? 0) : 0, ...p, discountPaise: 0, dueNowPaise: due, allowFull, allowAdvance, problem, isSample: !!l?.isSample,
     };
     let g = view.groups.find((x) => x.vendor.id === String(v?._id ?? ''));
     if (!g) view.groups.push((g = { vendor: { id: String(v?._id ?? ''), name: v?.businessName ?? 'Unavailable', slug: v?.slug ?? '', gstRegistered: reg }, lines: [], totalPaise: 0 }));
     g.lines.push(line);
-    if (problem) { problems = true; continue; }
+    meta.set(line.id, { advance: l?.project?.advancePaise ?? 0, price: l?.pricePaise ?? 0, reg, rate: l?.gstRatePct ?? 0 });
+    if (problem) problems = true;
+  }
+  const good = view.groups.flatMap((g) => g.lines).filter((l) => !l.problem);
+  if (cart?.couponCode) {
+    const c = await CouponModel.findOne({ code: cart.couponCode }).session(session ?? null).lean();
+    const eligible = c ? good.filter((l) => c.listingTypes.includes(l.type)) : [];
+    const base = eligible.reduce((a, l) => a + l.taxablePaise, 0);
+    let problem = await couponProblem(c as never, userId, session);
+    if (!problem && !base) problem = 'This coupon doesn’t apply to these items';
+    if (!problem && base < c!.minOrderPaise) problem = `Spend at least ₹${c!.minOrderPaise / 100} on eligible items`;
+    let discount = 0;
+    if (!problem) {
+      discount = c!.kind === 'percent' ? Math.floor((base * c!.value) / 100) : Math.round(c!.value * 100);
+      // Every line keeps at least ₹1, so each order stays payable.
+      discount = Math.min(discount, c!.maxDiscountPaise ?? Infinity, base - 100 * eligible.length);
+      if (discount <= 0) { discount = 0; problem = 'This coupon doesn’t apply to these items'; }
+    }
+    // Spread in proportion to what each line can give, without going below ₹1.
+    let left = discount;
+    let room = base - 100 * eligible.length;
+    for (const l of eligible) {
+      if (left <= 0) break;
+      const cap = l.taxablePaise - 100;
+      const share = cap >= room ? left : Math.min(cap, left, Math.round((left * cap) / room));
+      room -= cap;
+      left -= share;
+      const m = meta.get(l.id)!;
+      Object.assign(l, { discountPaise: share }, priceLine(l.unitPricePaise, l.qty, m.rate, m.reg, share));
+      l.dueNowPaise = l.plan === 'advance' ? advanceShare(m.advance, m.price, l.totalPaise) : l.totalPaise;
+    }
+    view.discountPaise = discount - left;
+    view.coupon = { code: cart.couponCode, discountPaise: view.discountPaise, problem };
+  }
+  for (const g of view.groups) for (const line of g.lines) {
+    if (line.problem) continue;
     g.totalPaise += line.totalPaise;
-    view.subtotalPaise += line.taxablePaise;
+    view.subtotalPaise += line.taxablePaise + line.discountPaise;
     view.gstPaise += line.gstPaise;
     view.totalPaise += line.totalPaise;
     view.dueNowPaise += line.dueNowPaise;
@@ -85,7 +123,7 @@ export async function buildCart(userId: Id, session?: ClientSession): Promise<Ca
 
 /* ================================================================ Checkout */
 
-type NewOrder = { buyerUserId: Id; vendorId: Id; kind: string; items: Order['items'][number][] | Record<string, unknown>[]; plan: PaymentPlan; advancePaise: number; address: Address; expiresAt?: Date; projectRequestId?: Id; isTest: boolean };
+type NewOrder = { buyerUserId: Id; vendorId: Id; kind: string; items: Order['items'][number][] | Record<string, unknown>[]; plan: PaymentPlan; advancePaise: number; address: Address; expiresAt?: Date; projectRequestId?: Id; isTest: boolean; discountPaise?: number; couponCode?: string; couponFundedBy?: string };
 
 export async function createOrder(o: NewOrder, actor: Actor, session: ClientSession): Promise<OrderDoc> {
   const items = o.items as { taxablePaise: number; gstPaise: number }[];
@@ -137,7 +175,9 @@ export async function checkout(userId: Id, input: { address: Address; expectedTo
       if (!cart.count) throw badRequest('Your cart is empty');
       const bad = cart.groups.flatMap((g) => g.lines).find((l) => l.problem);
       if (bad) throw conflict(`${bad.name}: ${bad.problem}`, undefined, 'CART_PROBLEM');
+      if (cart.coupon?.problem) throw conflict(`Coupon ${cart.coupon.code}: ${cart.coupon.problem}`, undefined, 'COUPON_PROBLEM');
       if (cart.totalPaise !== input.expectedTotalPaise) throw conflict('Prices have changed. Please review your cart.', undefined, 'PRICE_CHANGED');
+      const coupon = cart.coupon ? await CouponModel.findOne({ code: cart.coupon.code }).session(session).lean() : null;
       const orders: OrderDoc[] = [];
       for (const g of cart.groups) {
         const buckets = new Map<string, CartLine[]>();
@@ -149,17 +189,20 @@ export async function checkout(userId: Id, input: { address: Address; expectedTo
           const items = [];
           for (const l of lines) {
             const reserved = l.type === 'product' ? await ListingModel.updateOne({ _id: l.listingId, 'product.availability': 'in_stock', 'product.stockQty': { $gte: l.qty } }, { $inc: { 'product.stockQty': -l.qty } }, { session }) : null;
-            items.push({ listingId: l.listingId, name: l.name, type: l.type, slug: l.slug, qty: l.qty, unitPricePaise: l.unitPricePaise, gstRatePct: l.gstRatePct, taxablePaise: l.taxablePaise, gstPaise: l.gstPaise, totalPaise: l.totalPaise, note: l.note, stockReserved: !!reserved?.modifiedCount });
+            items.push({ listingId: l.listingId, name: l.name, type: l.type, slug: l.slug, qty: l.qty, unitPricePaise: l.unitPricePaise, gstRatePct: l.gstRatePct, discountPaise: l.discountPaise, taxablePaise: l.taxablePaise, gstPaise: l.gstPaise, totalPaise: l.totalPaise, note: l.note, stockReserved: !!reserved?.modifiedCount });
           }
           const first = lines[0]!;
+          const discountPaise = lines.reduce((a, l) => a + l.discountPaise, 0);
           orders.push(await createOrder({
             buyerUserId: userId, vendorId: g.vendor.id, kind: first.type, items, plan: first.plan, advancePaise: first.plan === 'advance' ? first.dueNowPaise : 0,
             address: input.address, expiresAt: new Date(Date.now() + unpaidExpiryMinutes * 60_000), isTest: gw.testMode,
+            ...(discountPaise ? { discountPaise, couponCode: coupon!.code, couponFundedBy: coupon!.fundedBy } : {}),
           }, actor, session));
         }
       }
+      if (coupon) await redeemCoupon(coupon._id, userId, orders.filter((o) => o.discountPaise > 0).map((o) => o._id), cart.discountPaise, session);
       const p = await createPayment(userId, orders, input.idempotencyKey, session);
-      await CartModel.updateOne({ userId }, { items: [] }, { session });
+      await CartModel.updateOne({ userId }, { $set: { items: [] }, $unset: { couponCode: 1 } }, { session });
       return p._id;
     });
   } catch (e) {
@@ -201,6 +244,24 @@ export async function applyGatewayEvent(provider: string, ev: GatewayEvent): Pro
     }
     p.set({ status: 'captured', providerPaymentId: ev.providerPaymentId, verifiedAt: new Date() });
     await p.save({ session });
+    await applyCapture(p, session);
+    return 'applied';
+  });
+}
+
+type PaymentDoc = InstanceType<typeof PaymentModel>;
+
+/** Record money that has definitely been received: against orders, a wallet top-up or a subscription. */
+async function applyCapture(p: PaymentDoc, session: ClientSession) {
+    const isTest = p.provider === 'sandbox';
+    if (p.purpose === 'topup') {
+      await post({ userId: p.buyerUserId!, isTest, wallet: 'main', direction: 'credit', amountPaise: p.amountPaise, category: 'topup', key: `topup:${p.id}`, refId: p.id, description: `Top-up ${p.paymentNo}` }, session);
+      return;
+    }
+    if (p.purpose === 'subscription') {
+      await activateSubscription(p.buyerUserId!, p.planId!, 'payment', `payment:${p.id}`, p.provider === 'wallet' ? !!activeGateway()?.testMode : isTest, session);
+      return;
+    }
     for (const a of p.allocations) {
       const o = await OrderModel.findById(a.orderId).session(session);
       if (!o) continue;
@@ -225,8 +286,48 @@ export async function applyGatewayEvent(provider: string, ev: GatewayEvent): Pro
       await o.save({ session });
       if (applied > 0 && o.paidPaise === o.totalPaise) await issueInvoice(o, session);
     }
-    return 'applied';
+}
+
+/** Pay an open payment from the main wallet. A separate payment record is used, so a late gateway capture still gets flagged for refund. */
+export async function payFromWallet(paymentId: Id) {
+  const src = await PaymentModel.findById(paymentId);
+  if (!src || src.purpose === 'topup') throw notFound('Payment');
+  const key = `wallet:${src.id}`;
+  const done = await PaymentModel.findOne({ buyerUserId: src.buyerUserId, idempotencyKey: key });
+  if (done) return done;
+  if (!['created', 'failed'].includes(src.status)) throw conflict('This payment is already finished');
+  const isTest = !!activeGateway()?.testMode;
+  if ((src.provider === 'sandbox') !== isTest) throw conflict('This payment was started in another mode');
+  await ensureWallets([src.buyerUserId!], isTest);
+  return mongoose.connection.transaction(async (session) => {
+    for (const a of src.allocations) {
+      const o = await OrderModel.findById(a.orderId).session(session);
+      if (!o || dueNow(o) !== a.amountPaise) throw conflict('The amount due has changed. Open the order to pay.');
+    }
+    const year = istYear();
+    const seq = await nextSequence(`payment:${year}`, session);
+    const [p] = await PaymentModel.create([{ paymentNo: `JR-PAY-${year}-${String(seq).padStart(6, '0')}`, buyerUserId: src.buyerUserId, idempotencyKey: key, allocations: src.allocations, amountPaise: src.amountPaise, purpose: src.purpose, planId: src.planId, provider: 'wallet', status: 'captured', verifiedAt: new Date() }], { session });
+    await post({ userId: src.buyerUserId!, isTest, wallet: 'main', direction: 'debit', amountPaise: src.amountPaise, category: src.purpose === 'subscription' ? 'subscription' : 'purchase', key, refId: p!.id, description: src.purpose === 'subscription' ? 'Subscription' : `Order ${src.allocations.map((a) => a.orderNo).join(', ')}`.slice(0, 200) }, session);
+    await applyCapture(p!, session);
+    return p!;
   });
+}
+
+/** A payment that isn't for an order: wallet top-up or subscription. */
+export async function startPayment(buyerUserId: Id, input: { amountPaise: number; purpose: 'topup' | 'subscription'; planId?: Id; idempotencyKey: string }) {
+  const gw = activeGateway();
+  if (!gw) throw new AppError(503, 'PAYMENTS_OFF', 'Online payments aren’t available yet');
+  const find = () => PaymentModel.findOne({ buyerUserId, idempotencyKey: input.idempotencyKey });
+  let p = await find();
+  if (!p) {
+    await ensureWallets([buyerUserId], gw.testMode);
+    const year = istYear();
+    const seq = await nextSequence(`payment:${year}`);
+    try {
+      p = await PaymentModel.create({ ...input, paymentNo: `JR-PAY-${year}-${String(seq).padStart(6, '0')}`, buyerUserId, allocations: [], provider: gw.name });
+    } catch (e) { if ((e as { code?: number }).code !== 11000) throw e; p = (await find())!; }
+  }
+  return openWithGateway(p._id);
 }
 
 const syncRequest = async (o: OrderDoc, status: 'running' | 'completed' | 'cancelled', session: ClientSession) => {
@@ -260,6 +361,7 @@ async function cancelInside(o: OrderDoc, actor: Actor, note: string, session: Cl
   o.expiresAt = undefined;
   o.history.push(hist('cancelled', actor, note) as never);
   if (!shipped) await releaseStock(o, session);
+  if (o.paidPaise === 0 && o.couponCode) await releaseCoupon(o._id, session);
   // How much is returned is an admin decision; the refund is only requested here.
   o.refundRequestedPaise = Math.max(0, o.capturedPaise - o.refundReservedPaise);
   await syncRequest(o, 'cancelled', session);
@@ -299,8 +401,8 @@ export function nextSteps(o: Pick<Order, 'status' | 'kind'>): ('processing' | 's
   return [];
 }
 
-export const transition = (orderId: Id, actor: Actor, to: 'processing' | 'shipped' | 'completed', opts: { note?: string; tracking?: { carrier: string; number: string; url?: string } } = {}) =>
-  change(orderId, async (o, session) => {
+export const transition = async (orderId: Id, actor: Actor, to: 'processing' | 'shipped' | 'completed', opts: { note?: string; tracking?: { carrier: string; number: string; url?: string } } = {}) => {
+  const done = await change(orderId, async (o, session) => {
     if (!nextSteps(o).includes(to)) throw conflict(`An order that is ${o.status} can’t be marked ${to}`);
     if (o.cancellation?.status === 'open') throw conflict('Decide the buyer’s cancellation request first');
     if (to === 'completed' && o.paidPaise < o.totalPaise) throw conflict('The balance must be paid before this order can be completed', undefined, 'BALANCE_DUE');
@@ -309,6 +411,10 @@ export const transition = (orderId: Id, actor: Actor, to: 'processing' | 'shippe
     if (to === 'completed') { o.completedAt = new Date(); await syncRequest(o, 'completed', session); }
     o.history.push(hist(to, actor, opts.note) as never);
   });
+  // The scheduled job retries this if it fails.
+  if (to === 'completed') await createCommissions(orderId).catch((err) => logger.error({ err }, 'Commission calculation failed'));
+  return done;
+};
 
 /** Cancel unpaid orders past their deadline and release reserved stock. */
 export async function expireUnpaid(now = new Date()) {
@@ -334,7 +440,6 @@ export function scheduleOrderExpiry() {
 
 export async function refundOrder(orderId: Id, input: { amount: number; reason: string; idempotencyKey: string }, byUserId: Id, actor: Actor) {
   const gw = activeGateway();
-  if (!gw) throw new AppError(503, 'PAYMENTS_OFF', 'The payment gateway isn’t configured');
   if (await RefundModel.exists({ idempotencyKey: input.idempotencyKey })) {
     if (!(await RefundModel.exists({ idempotencyKey: input.idempotencyKey, orderId }))) throw conflict('This refund key was used for another order');
     return;
@@ -352,7 +457,7 @@ export async function refundOrder(orderId: Id, input: { amount: number; reason: 
     let left = input.amount;
     const rows = [];
     for (const p of payments) {
-      if (p.provider !== gw.name) continue;
+      if (p.provider !== 'wallet' && p.provider !== gw?.name) continue;
       const alloc = p.allocations.filter((a) => String(a.orderId) === String(orderId)).reduce((a, x) => a + x.amountPaise, 0);
       const used = prior.filter((r) => String(r.paymentId) === String(p._id)).reduce((a, r) => a + r.amountPaise, 0);
       const amountPaise = Math.min(left, alloc - used);
@@ -364,13 +469,17 @@ export async function refundOrder(orderId: Id, input: { amount: number; reason: 
     return RefundModel.create(rows, { session, ordered: true });
   });
 
-  // 2. Ask the gateway, then record each result.
+  const owner = (await OrderModel.findById(orderId, { buyerUserId: 1, isTest: 1 }).lean())!;
+  await ensureWallets([owner.buyerUserId!], owner.isTest);
+
+  // 2. Ask the gateway (wallet payments go back to the wallet), then record each result.
   let failed = 0;
   for (const r of refunds) {
     let providerRefundId: string | null = null;
+    const p = await PaymentModel.findById(r.paymentId).lean();
+    const toWallet = p!.provider === 'wallet';
     try {
-      const p = await PaymentModel.findById(r.paymentId).lean();
-      providerRefundId = (await gw.refund({ providerPaymentId: p!.providerPaymentId!, amountPaise: r.amountPaise, key: String(r._id) })).providerRefundId;
+      providerRefundId = toWallet ? `wallet:${r.id}` : (await gw!.refund({ providerPaymentId: p!.providerPaymentId!, amountPaise: r.amountPaise, key: String(r._id) })).providerRefundId;
     } catch (err) {
       logger.error({ err, refundId: String(r._id) }, 'Gateway refund failed');
     }
@@ -384,6 +493,7 @@ export async function refundOrder(orderId: Id, input: { amount: number; reason: 
         return;
       }
       await RefundModel.updateOne({ _id: r._id }, { status: 'processed', providerRefundId }, { session });
+      if (toWallet) await post({ userId: o.buyerUserId!, isTest: o.isTest, wallet: 'main', direction: 'credit', amountPaise: r.amountPaise, category: 'refund', key: `refund:${r.id}`, refId: r.id, description: `Refund for ${o.orderNo}` }, session);
       o.refundedPaise += r.amountPaise;
       o.refundRequestedPaise = Math.max(0, o.refundRequestedPaise - r.amountPaise);
       // Extra money received was never invoiced, so only refunds beyond it need a credit note.
@@ -399,6 +509,7 @@ export async function refundOrder(orderId: Id, input: { amount: number; reason: 
         await syncRequest(o, 'cancelled', session);
       }
       await o.save({ session });
+      await reverseForRefund(o, session);
       const total = await RefundModel.aggregate<{ n: number }>([{ $match: { paymentId: r.paymentId, status: 'processed' } }, { $group: { _id: null, n: { $sum: '$amountPaise' } } }]).session(session);
       await PaymentModel.updateOne({ _id: r.paymentId, amountPaise: { $lte: total[0]?.n ?? 0 } }, { status: 'refunded' }, { session });
     });
@@ -472,7 +583,7 @@ export async function toOrderDetail(order: LeanOrder, viewer: Viewer): Promise<O
   return {
     ...row!,
     items: order.items.map((i) => ({ name: i.name, type: i.type, slug: i.slug ?? null, qty: i.qty, unitPricePaise: i.unitPricePaise, gstRatePct: i.gstRatePct, taxablePaise: i.taxablePaise, gstPaise: i.gstPaise, totalPaise: i.totalPaise, note: i.note ?? '' })),
-    subtotalPaise: order.subtotalPaise, gstPaise: order.gstPaise, advancePaise: order.advancePaise, plan: order.plan, dueNowPaise: due,
+    subtotalPaise: order.subtotalPaise + order.discountPaise, discountPaise: order.discountPaise, couponCode: order.couponCode ?? null, gstPaise: order.gstPaise, advancePaise: order.advancePaise, plan: order.plan, dueNowPaise: due,
     // The vendor gets delivery contact details only once the order is paid.
     address: viewer.as === 'vendor' && !order.confirmedAt ? null : (order.address as unknown as Address),
     history: order.history.map((h) => ({ status: h.status ?? '', at: h.at!.toISOString(), by: h.by ?? '', note: h.note ?? '' })),
@@ -488,7 +599,7 @@ export async function toOrderDetail(order: LeanOrder, viewer: Viewer): Promise<O
 }
 
 export const toPaymentView = (p: Payment & { _id: unknown; createdAt: Date }): PaymentView => ({
-  id: String(p._id), paymentNo: p.paymentNo, provider: p.provider, status: p.status, amountPaise: p.amountPaise, testMode: p.provider === 'sandbox', createdAt: p.createdAt.toISOString(),
+  id: String(p._id), paymentNo: p.paymentNo, provider: p.provider, purpose: p.purpose, status: p.status, amountPaise: p.amountPaise, testMode: p.provider === 'sandbox', createdAt: p.createdAt.toISOString(),
   orders: p.allocations.map((a) => ({ id: String(a.orderId), orderNo: a.orderNo ?? '', amountPaise: a.amountPaise })),
 });
 

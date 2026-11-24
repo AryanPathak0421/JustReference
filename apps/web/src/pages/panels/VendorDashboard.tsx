@@ -1,14 +1,13 @@
 import { Banknote, Gavel, IndianRupee, Package, Plus, ShoppingCart, Wallet } from 'lucide-react';
 import type { OrderRow } from '@jr/shared';
 import { formatINR } from '@jr/shared/money';
-import { Alert, ButtonLink, Card, CardHeader, DataTable, ErrorState, PageHeader, SampleDataBadge, StatusBadge, type Column } from '@/design-system';
-import { fetchVendorDashboard } from '@/features/dashboard/api';
+import { Alert, Badge, ButtonLink, Card, CardHeader, DataTable, PageHeader, StatusBadge, type Column } from '@/design-system';
 import { MoneyTrendCard } from '@/features/dashboard/charts';
 import { ActionList, fmtDate, MiniStats, StatGrid, type ActionItem } from '@/features/dashboard/widgets';
-import { useAsync } from '@/lib/useAsync';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { useEarnings, useWallet } from '@/features/finance/api';
 import { listOrders, orderStats } from '@/features/commerce/api';
 import { getVendorSummary } from '@/features/vendor/api';
 
@@ -31,8 +30,8 @@ const ATTENTION_ICON: Record<string, Pick<ActionItem, 'icon' | 'tone' | 'to'>> =
 };
 
 export function VendorDashboard() {
-  const { data, loading, error, reload } = useAsync(fetchVendorDashboard, []);
-  const s = data?.stats;
+  const wallet = useWallet();
+  const earn = useEarnings();
   // Real (Phase 2): business status and listing counts. Everything else on this page is still sample data.
   const { user } = useAuth();
   const summary = useQuery({ queryKey: ['vendor', 'summary'], queryFn: getVendorSummary });
@@ -40,7 +39,6 @@ export function VendorDashboard() {
   const stats = useQuery({ queryKey: ['orders', 'vendor', 'stats'], queryFn: () => orderStats('vendor') });
   const recent = useQuery({ queryKey: ['orders', 'vendor', 'recent'], queryFn: () => listOrders('vendor', { pageSize: 5 }) });
   const o = stats.data;
-  if (error) return <Card><ErrorState onRetry={reload} /></Card>;
 
   return (
     <div className="grid grid-cols-1 gap-5 animate-fade-in">
@@ -70,25 +68,25 @@ export function VendorDashboard() {
         ]}
       />
 
-      <div className="flex items-center gap-2"><h2 className="text-[15px] font-bold">Orders & earnings</h2><SampleDataBadge label="Balance, earnings and chart are sample data until Phase 5" /></div>
+      <div className="flex items-center gap-2"><h2 className="text-[15px] font-bold">Orders & earnings</h2>{wallet.data?.testMode && <Badge tone="amber">Test money</Badge>}</div>
 
       <StatGrid
-        loading={loading}
+        loading={stats.isLoading || wallet.isLoading}
         stats={[
           { label: 'Orders in progress', value: String(o?.active ?? ''), icon: ShoppingCart, tone: 'blue', note: o ? `${o.total} total · ${o.completed} completed` : '' },
           { label: 'Total sales', value: o ? formatINR(o.valuePaise) : '', icon: IndianRupee, tone: 'green', note: 'Paid, less refunds' },
-          { label: 'Available balance', value: s ? formatINR(s.walletPaise) : '', icon: Wallet, tone: 'violet', note: s ? `${formatINR(s.pendingPayoutPaise)} payout pending` : '' },
-          { label: 'Total earnings', value: s ? formatINR(s.earningsPaise) : '', icon: Banknote, tone: 'amber', note: 'After platform fees' },
+          { label: 'Available balance', value: wallet.data ? formatINR(wallet.data.earningsPaise) : '', icon: Wallet, tone: 'violet', note: wallet.data ? `${formatINR(wallet.data.pendingWithdrawalPaise)} payout pending` : '' },
+          { label: 'Total earnings', value: earn.data ? formatINR(earn.data.paidPaise) : '', icon: Banknote, tone: 'amber', note: 'After platform fees' },
         ]}
       />
 
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.65fr_1fr]">
-        <MoneyTrendCard title="Sales overview" data={data?.chart} loading={loading} names={{ a: 'Sales', b: 'Payouts' }} />
+        <MoneyTrendCard title="Sales overview" data={o && earn.data ? o.months.map((x, i) => ({ month: x.month, a: x.valuePaise, b: earn.data!.months[i]?.valuePaise ?? 0 })) : undefined} loading={stats.isLoading || earn.isLoading} names={{ a: 'Sales received', b: 'Credited to you' }} />
         <ActionList
           title="Needs your attention"
           description="Sorted by urgency"
-          loading={loading}
+          loading={stats.isLoading}
           items={[{ ...ATTENTION_ICON.orders!, title: `${o?.active ?? 0} orders in progress`, sub: 'Process, ship or complete' }, { ...ATTENTION_ICON.orders!, to: '/vendor/orders/all?attention=cancellation', title: `${o?.cancellationRequests ?? 0} cancellation requests`, sub: 'Waiting for your decision' }, { ...ATTENTION_ICON.listings!, title: `${sum?.byStatus.pending_approval ?? 0} listings in review`, sub: 'With our team' }]}
         />
       </div>

@@ -96,6 +96,56 @@ const adminCommerce: RouteObject[] = [
   { path: 'bids/:id', lazy: RequestDetail('admin') },
 ];
 
+/* Money (Phase 5) */
+const self = (pick: (m: typeof import('@/pages/finance/SelfPages')) => ComponentType) => lazy(() => import('@/pages/finance/SelfPages'), pick);
+const fin = (pick: (m: typeof import('@/pages/finance/AdminPages')) => ComponentType) => lazy(() => import('@/pages/finance/AdminPages'), pick);
+const sup = (pick: (m: typeof import('@/pages/finance/SuperPages')) => ComponentType) => lazy(() => import('@/pages/finance/SuperPages'), pick);
+const walletRoute = (key: PanelKey, path: string, action: 'overview' | 'top-up' | 'transfer' | 'withdraw' | 'password'): RouteObject => ({ path, lazy: self((m) => () => <m.WalletPage key={action} panelKey={key} action={action} />) });
+const memberMoney: RouteObject[] = [
+  walletRoute('member', 'wallet', 'overview'), walletRoute('member', 'wallet/top-up', 'top-up'), walletRoute('member', 'wallet/transfer', 'transfer'), walletRoute('member', 'wallet/withdraw', 'withdraw'), walletRoute('member', 'wallet/password', 'password'),
+  { path: 'wallet/payouts', lazy: self((m) => () => <m.WithdrawalsPage panelKey="member" />) },
+  ...[['wallet/transactions', 'Transaction report', undefined], ['account-report/credit', 'Credit report', 'credit'], ['account-report/debit', 'Debit report', 'debit'], ['account-report/balance', 'Balance report', undefined]].map(([path, title, direction]) => ({ path, lazy: self((m) => () => <m.TransactionsPage key={path} panelKey="member" title={title} direction={direction as 'credit' | undefined} />) })),
+  { path: 'account-report/tds', lazy: self((m) => m.MyTdsPage) },
+  ...([['my-business', 'mine'], ['referral-business', 'referral'], ['search', 'search'], ['total', 'total']] as const).map(([path, view]) => ({ path: `earnings/${path}`, lazy: self((m) => () => <m.BusinessPage key={view} view={view} />) })),
+  { path: 'earnings/commissions', lazy: self((m) => () => <m.CommissionsPage panelKey="member" />) },
+  { path: 'rewards/cash', lazy: self((m) => () => <m.MyRewardsPage key="cash" kind="cash" />) },
+  { path: 'rewards/other', lazy: self((m) => () => <m.MyRewardsPage key="other" kind="other" />) },
+  ...([['rewards/coupons', 'unused', 'Coupon rewards'], ['coupons/unused', 'unused', 'Unused coupons'], ['coupons/used', 'used', 'Used coupons'], ['coupons/expired', 'expired', 'Expired coupons']] as const).map(([path, status, title]) => ({ path, lazy: self((m) => () => <m.MyCouponsPage status={status} title={title} />) })),
+  { path: 'epin/plans', lazy: self((m) => m.PlansPage) },
+  { path: 'epin/generate', lazy: self((m) => () => <m.MyEpinsPage key="gen" />) },
+  { path: 'epin/special', lazy: self((m) => () => <m.MyEpinsPage key="special" special />) },
+];
+const vendorMoney: RouteObject[] = [
+  walletRoute('vendor', 'wallet', 'overview'), walletRoute('vendor', 'wallet/withdraw', 'withdraw'), walletRoute('vendor', 'wallet/password', 'password'),
+  { path: 'wallet/transactions', lazy: self((m) => () => <m.TransactionsPage panelKey="vendor" />) },
+  { path: 'payouts', lazy: self((m) => () => <m.WithdrawalsPage panelKey="vendor" />) },
+  { path: 'earnings', lazy: self((m) => m.VendorEarningsPage) },
+  { path: 'earnings/commissions', lazy: self((m) => () => <m.CommissionsPage panelKey="vendor" />) },
+];
+const epinRoutes = (key: PanelKey, prefix: string): RouteObject[] => (['generate', 'fresh', 'used', 'search'] as const).map((mode) => ({ path: `${prefix}/${mode}`, lazy: fin((m) => () => <m.EpinsAdminPage panelKey={key} mode={mode} />) }));
+const adminMoney: RouteObject[] = [
+  { path: 'commissions/pay', lazy: fin((m) => () => <m.CommissionsAdminPage key="pay" panelKey="admin" mode="pay" />) },
+  { path: 'commissions/referral-income', lazy: fin((m) => () => <m.CommissionsAdminPage key="all" panelKey="admin" mode="all" />) },
+  { path: 'commissions/investment-income', lazy: fin((m) => m.InvestmentIncomePage) },
+  { path: 'withdrawals/balances', lazy: fin((m) => () => <m.BalancesPage panelKey="admin" title="Member account balance" />) },
+  ...([['withdrawn', 'Withdrawn balance', 'paid'], ['list', 'Withdrawn list', undefined], ['bank-transfers', 'Bank transfer requests', 'open']] as const).map(([path, title, status]) => ({ path: `withdrawals/${path}`, lazy: fin((m) => () => <m.WithdrawalsAdminPage key={path} panelKey="admin" title={title} status={status} />) })),
+  { path: 'transactions', lazy: fin((m) => () => <m.AllTransactionsPage panelKey="admin" />) },
+  { path: 'rewards/pay', lazy: fin((m) => () => <m.RewardsAdminPage key="pay" panelKey="admin" pay />) },
+  { path: 'rewards/list', lazy: fin((m) => () => <m.RewardsAdminPage key="list" panelKey="admin" />) },
+  { path: 'coupons', lazy: fin((m) => () => <m.CouponsPage panelKey="admin" />) },
+  { path: 'tds', lazy: fin((m) => () => <m.TdsAdminPage panelKey="admin" />) },
+  ...epinRoutes('admin', 'epins'),
+];
+const superMoney: RouteObject[] = [
+  { path: 'transactions', lazy: fin((m) => () => <m.AllTransactionsPage panelKey="super-admin" />) },
+  { path: 'wallets', lazy: lazy(async () => ({ a: await import('@/pages/finance/AdminPages'), s: await import('@/pages/finance/SuperPages') }), ({ a, s }) => () => <div className="grid gap-5"><s.ReconciliationCard /><a.BalancesPage panelKey="super-admin" title="Wallet monitor" /></div>) },
+  { path: 'commission-rules', lazy: sup((m) => m.CommissionRulesPage) },
+  { path: 'subscriptions', lazy: sup((m) => m.PlansAdminPage) },
+  { path: 'epins', lazy: fin((m) => () => <m.EpinsAdminPage panelKey="super-admin" mode="generate" />) },
+  { path: 'coupons', lazy: fin((m) => () => <m.CouponsPage panelKey="super-admin" />) },
+  { path: 'rewards', lazy: fin((m) => () => <m.RewardsAdminPage panelKey="super-admin" pay />) },
+];
+
 const dashboards: Record<PanelKey, () => Promise<{ Component: ComponentType }>> = {
   member: lazy(() => import('@/pages/panels/MemberDashboard'), (m) => m.MemberDashboard),
   vendor: lazy(() => import('@/pages/panels/VendorDashboard'), (m) => m.VendorDashboard),
@@ -109,6 +159,7 @@ const PANEL_ROUTES: Record<PanelKey, RouteObject[]> = {
     { path: 'profile', lazy: lazy(() => import('@/pages/member/MyProfilePage'), (m) => () => <m.MyProfilePage panelKey="member" />) },
     ...referralRoutes('member'),
     ...memberCommerce,
+    ...memberMoney,
   ],
   vendor: [
     { path: 'profile', lazy: lazy(() => import('@/pages/vendor/BusinessProfilePage'), (m) => m.BusinessProfilePage) },
@@ -116,6 +167,7 @@ const PANEL_ROUTES: Record<PanelKey, RouteObject[]> = {
     { path: 'personal-profile', lazy: lazy(() => import('@/pages/member/MyProfilePage'), (m) => () => <m.MyProfilePage panelKey="vendor" />) },
     ...referralRoutes('vendor'),
     ...vendorCommerce,
+    ...vendorMoney,
   ],
   admin: [
     { path: 'members/all', lazy: Members('admin', 'all') },
@@ -143,6 +195,7 @@ const PANEL_ROUTES: Record<PanelKey, RouteObject[]> = {
     { path: 'categories', lazy: Categories('admin') },
     ...catalogRoutes('admin', 'admin'),
     ...adminCommerce,
+    ...adminMoney,
   ],
   'super-admin': [
     { path: 'admins', lazy: lazy(() => import('@/pages/super/AdminsPage'), (m) => m.AdminsPage) },
@@ -152,6 +205,7 @@ const PANEL_ROUTES: Record<PanelKey, RouteObject[]> = {
     { path: 'members/bank-details', lazy: BankDetails('super-admin') },
     { path: 'members/referrals', lazy: AdminReferrals('super-admin') },
     { path: 'members/:id', lazy: MemberDetail('super-admin') },
+    ...superMoney,
     { path: 'payment-gateway', lazy: lazy(() => import('@/pages/super/PaymentGatewayPage'), (m) => m.PaymentGatewayPage) },
     { path: 'settings', lazy: Settings('super-admin') },
     { path: 'maintenance', lazy: Maintenance('super-admin') },

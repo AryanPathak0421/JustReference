@@ -193,3 +193,29 @@ Orders are visible only once paid. Changes need `vendor.orders.manage`; bidding 
 | POST | `/admin/project-requests/:id/decision` · `/close` | `bids.moderate` (audited) |
 | GET | `/admin/payment-gateway` | `settings.view` |
 | GET / PUT | `/settings/commerce` | `settings.view` / `settings.edit` |
+
+## Money: self-service (`/finance`, member or vendor, Phase 5)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/finance/wallet` · `/transactions?format=csv` · `/earnings` · `/commissions` · `/tds` · `/rewards` · `/withdrawals` · `/business` | Own records only |
+| POST | `/finance/topup` · `/transfer` · `/move` · `/withdrawals` | `idempotencyKey` required; money out needs `pin`. 403 `DISABLED`, 409 `INSUFFICIENT_BALANCE`, 429 `PIN_LOCKED` |
+| GET | `/finance/recipient/:memberId` | Shortened name |
+| GET | `/finance/settlements` | Vendors |
+| GET | `/finance/coupons` · `/plans` · `/subscriptions` · `/epins` | |
+| POST | `/finance/subscriptions` · `/epins` · `/epins/redeem` · `/epins/:id/reveal` | |
+| POST | `/payments/:id/wallet` | Pay an open payment from the main wallet |
+| PUT / DELETE | `/cart/coupon` | |
+
+## Money: admin (`/admin`)
+
+| Method | Path | Permission |
+|---|---|---|
+| GET | `/admin/finance/summary` · `/transactions` · `/balances` · `/withdrawals` | `wallet.view` |
+| POST | `/admin/finance/withdrawals/:id/decision` · `/paid` | `wallet.payout` |
+| GET / POST | `/admin/finance/commissions` · `/commissions/pay` | `commissions.view` / `commissions.pay` |
+| GET | `/admin/finance/tds` | `tds.view` |
+| GET / POST | `/admin/finance/rewards` | `rewards.manage` |
+| GET / POST | `/admin/coupons[/:id/active or assign]` | `coupons.manage` |
+| GET / POST | `/admin/epins[/:id/issue or block]`, GET `/admin/plans` | `epins.manage` |
+| POST / PUT | `/admin/plans[/:id]`, `/admin/commission-rules[/:id]`, GET/POST `/admin/finance/reconciliation`, PUT `/settings/wallet` · `/settings/earnings` | Super Admin only (`money.manage`) |

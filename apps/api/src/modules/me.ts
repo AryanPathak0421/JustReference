@@ -56,7 +56,7 @@ router.put('/transaction-pin', async (req, res) => {
   }
   await SecurityCodeModel.findOneAndUpdate(
     { userId: user._id, type: 'transaction_pin' },
-    { hash: await hashSecret(input.pin) },
+    { hash: await hashSecret(input.pin), failedAttempts: 0, lockedUntil: null },
     { upsert: true },
   );
   await audit(req, { action: 'security.pin_set', entity: 'user', entityId: user.id, summary: 'Set a new transaction PIN' });

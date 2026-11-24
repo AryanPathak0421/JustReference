@@ -184,7 +184,7 @@ export function OrderDetailPage({ panelKey }: { panelKey: PanelKey }) {
               ))}
             </ul>
             <div className="mt-4 sm:ml-auto sm:max-w-xs">
-              <Totals rows={[['Subtotal', o.subtotalPaise], ['GST', o.gstPaise], ...(o.plan === 'advance' ? [['Advance', o.advancePaise] as [string, number]] : []), ['Paid', o.paidPaise], ...(o.refundedPaise ? [['Refunded', o.refundedPaise] as [string, number]] : [])]} total={['Total', o.totalPaise]} />
+              <Totals rows={[['Subtotal', o.subtotalPaise], ...(o.discountPaise ? [[`Coupon ${o.couponCode ?? ''}`, -o.discountPaise] as [string, number]] : []), ['GST', o.gstPaise], ...(o.plan === 'advance' ? [['Advance', o.advancePaise] as [string, number]] : []), ['Paid', o.paidPaise], ...(o.refundedPaise ? [['Refunded', o.refundedPaise] as [string, number]] : [])]} total={['Total', o.totalPaise]} />
               {o.dueNowPaise > 0 && <p className="mt-2 text-right text-[13px] font-semibold text-warn">{formatINR(o.dueNowPaise)} due</p>}
             </div>
             {o.projectRequestId && panelKey === 'member' && <Link to={`/member/projects/requests/${o.projectRequestId}`} className="mt-3 inline-block text-[13px] font-semibold text-brand-600 hover:underline">View the project request</Link>}
